@@ -2,9 +2,8 @@ mod board;
 mod data;
 mod helpers;
 mod resources;
-use std::{path::PathBuf, str::FromStr};
 
-use board::{BoardPos, ChessBoardCell};
+use board::{BoardPos, ChessBoardCell, MoveBuilder};
 use raylib::{
     ffi::{MouseButton, TraceLogLevel},
     math::{Rectangle, Vector2},
@@ -12,6 +11,7 @@ use raylib::{
     RaylibHandle, RaylibThread,
 };
 use resources::*;
+use std::{path::PathBuf, str::FromStr};
 
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 800;
@@ -168,13 +168,13 @@ impl GameState {
             let mouse_pos = self.window_handle.get_mouse_position();
             if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
                 let pos = helpers::get_board_pos(&self.board_data, point);
-                self.window_handle.trace_log(
-                    TraceLogLevel::LOG_DEBUG,
-                    &format!(
-                        "mouse_pos: {:?}\npoint: {:?}\npos: {:?}",
-                        mouse_pos, point, pos
-                    ),
-                );
+                // self.window_handle.trace_log(
+                //     TraceLogLevel::LOG_DEBUG,
+                //     &format!(
+                //         "mouse_pos: {:?}\npoint: {:?}\npos: {:?}",
+                //         mouse_pos, point, pos
+                //     ),
+                // );
                 self.handle_select(pos);
             }
         }
@@ -183,8 +183,6 @@ impl GameState {
             .is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT)
             && self.selected_piece.is_some()
         {
-            self.window_handle
-                .trace_log(TraceLogLevel::LOG_DEBUG, "release");
             let mouse_pos = self.window_handle.get_mouse_position();
             if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
                 let pos = helpers::get_board_pos(&self.board_data, point);
@@ -206,13 +204,13 @@ impl GameState {
                 }
                 board::ChessBoardCell::White(_) => {
                     self.selected_piece = Some(Selection {
-                        piece: self.board.take_at(pos).unwrap(),
+                        piece: self.board.take_from(pos).unwrap(),
                         taken_from: pos,
                     });
                 }
                 board::ChessBoardCell::Black(_) => {
                     self.selected_piece = Some(Selection {
-                        piece: self.board.take_at(pos).unwrap(),
+                        piece: self.board.take_from(pos).unwrap(),
                         taken_from: pos,
                     });
                 }
@@ -220,19 +218,26 @@ impl GameState {
         }
     }
     fn handle_place(&mut self, pos: BoardPos) {
-        if let Some(_) = &self.selected_piece {
-            //place selection in empty cell
-            if let Some(ChessBoardCell::Empty) = self.board.at(pos) {
-                self.board
-                    .place_at(pos, self.selected_piece.take().unwrap().piece)
-                    .unwrap();
-            } else {
-                //put it back where it came from if somethig is there
-                let selection = self.selected_piece.take().unwrap();
-                self.board
-                    .place_at(selection.taken_from, selection.piece)
-                    .unwrap();
-            }
+        if let Some(s) = &self.selected_piece {
+            let m = MoveBuilder::new().from(s.taken_from).to(pos).build();
+            let selection = self.selected_piece.take().unwrap();
+            self.board
+                .place_at(selection.taken_from, selection.piece)
+                .unwrap();
+            self.board.move_piece(m);
+
+            // //place selection in empty cell
+            // if let Some(ChessBoardCell::Empty) = self.board.at(pos) {
+            //     self.board
+            //         .place_at(pos, self.selected_piece.take().unwrap().piece)
+            //         .unwrap();
+            // } else {
+            //     //put it back where it came from if something is there
+            //     let selection = self.selected_piece.take().unwrap();
+            //     self.board
+            //         .place_at(selection.taken_from, selection.piece)
+            //         .unwrap();
+            // }
         }
     }
 

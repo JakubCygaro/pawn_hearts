@@ -1,8 +1,86 @@
+mod move_validation;
+
+use std::collections::HashMap;
+
 use anyhow::anyhow;
+use lazy_static::lazy_static;
 use raylib::prelude::*;
 
+#[derive(Copy, Clone, Debug, Default)]
+pub struct BoardMove {
+    from: BoardPos,
+    to: BoardPos,
+    rows: isize,
+    columns: isize,
+}
+
+impl BoardMove {
+    pub fn new(from: BoardPos, to: BoardPos) -> Self {
+        let rows = to.row as isize - from.row as isize;
+        let columns = to.col as isize - from.col as isize;
+
+        Self {
+            from,
+            to,
+            rows,
+            columns,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct MoveBuilder {
+    from: BoardPos,
+    to: BoardPos,
+    rows: isize,
+    columns: isize,
+}
+
+impl MoveBuilder {
+    pub fn new() -> Self {
+        Self {
+            from: BoardPos::default(),
+            to: BoardPos::default(),
+            rows: isize::default(),
+            columns: isize::default(),
+        }
+    }
+
+    pub fn from(&mut self, pos: BoardPos) -> &mut Self {
+        self.from = pos;
+        self
+    }
+
+    pub fn to(&mut self, pos: BoardPos) -> &mut Self {
+        self.to = pos;
+        self
+    }
+
+    pub fn rows(&mut self, r: isize) -> &mut Self {
+        self.rows = r;
+        self.to = BoardPos {
+            col: self.to.col,
+            row: self.from.row + r as usize,
+        };
+        self
+    }
+
+    pub fn columns(&mut self, c: isize) -> &mut Self {
+        self.columns = c;
+        self.to = BoardPos {
+            col: self.from.col + c as usize,
+            row: self.to.row,
+        };
+        self
+    }
+
+    pub fn build(self) -> BoardMove {
+        BoardMove::new(self.from, self.to)
+    }
+}
+
 /// Board row and column
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BoardPos {
     pub row: usize,
     pub col: usize,
@@ -15,7 +93,7 @@ impl BoardPos {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChessBoardCell {
     White(ChessPiece),
     Black(ChessPiece),
@@ -46,7 +124,7 @@ impl ChessBoardCell {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChessPiece {
     Pawn,
     Bishop,
@@ -115,6 +193,7 @@ macro_rules! p {
     };
 }
 
+#[derive(Debug)]
 pub struct ChessBoard {
     cells: Vec<ChessBoardCell>,
 }
@@ -127,7 +206,7 @@ impl ChessBoard {
             self.cells.get(pos.to_index())
         }
     }
-    pub fn take_at(&mut self, pos: BoardPos) -> Option<ChessBoardCell> {
+    pub fn take_from(&mut self, pos: BoardPos) -> Option<ChessBoardCell> {
         let (row, col) = (pos.row, pos.col);
         if row > 8 || col > 8 {
             None
@@ -148,6 +227,53 @@ impl ChessBoard {
             self.cells[index] = cell;
             Ok(())
         }
+    }
+
+    pub fn move_piece(&mut self, m: BoardMove) {
+        let Some(target) = self.validate_move(m) else {
+            return;
+        };
+        let piece = self.take_from(m.from).unwrap();
+        self.place_at(target, piece).unwrap()
+    }
+
+    fn validate_move(&self, m: BoardMove) -> Option<BoardPos> {
+        if m.to == m.from {
+            return None;
+        }
+        let from_cell = self.at(m.from);
+        let Some(from_cell) = from_cell else {
+            return None;
+        };
+        if *from_cell == ChessBoardCell::Empty {
+            return None;
+        }
+
+        if let Some(at_cell) = self.at(m.to) {
+            //check if the target piece is not of the same colour as the from piece
+            if match (from_cell, at_cell) {
+                (_, ChessBoardCell::Empty) => false,
+                (ChessBoardCell::Black(_), ChessBoardCell::White(_))
+                | (ChessBoardCell::White(_), ChessBoardCell::Black(_)) => false,
+                _ => true,
+            } {
+                return None;
+            }
+            return if move_validation::MOVEMAP.contains_key(from_cell) {
+                println!("moving: {:?}", from_cell);
+                move_validation::MOVEMAP[from_cell](m, &self).then(|| m.to)
+            } else {
+                None
+            };
+        } else {
+            None
+        }
+    }
+}
+
+impl Default for ChessBoard {
+    fn default() -> Self {
+        Self::new_empty()
     }
 }
 
