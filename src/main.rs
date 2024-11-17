@@ -38,6 +38,7 @@ struct GameState {
     loader: Box<dyn ResourceLoader>,
     board_data: board::BoardRenderData,
     selected_piece: Option<Selection>,
+    reversed: bool,
 }
 impl GameState {
     pub fn init(width: i32, height: i32) -> Self {
@@ -63,6 +64,7 @@ impl GameState {
             loader: Box::new(loader),
             board_data: board::BoardRenderData::default(),
             selected_piece: None,
+            reversed: true,
         }
     }
     pub fn run(&mut self) {
@@ -85,7 +87,14 @@ impl GameState {
         draw_handle.clear_background(Color::BLACK);
 
         let mut color = Color::WHITESMOKE;
-        for (n, cell) in self.board.cells().iter().enumerate() {
+
+        let iter = if !self.reversed {
+            self.board.cells().iter().enumerate().collect::<Vec<_>>()
+        } else {
+            self.board.cells().iter().rev().enumerate().collect()
+        };
+
+        for (n, cell) in iter {
             let col = n % 8;
             let row = n / 8;
             let rect = Rectangle {
@@ -158,23 +167,30 @@ impl GameState {
             )
         }
     }
-
+    fn board_pos(&self) -> Option<BoardPos> {
+        let mouse_pos = self.window_handle.get_mouse_position();
+        if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
+            let point = if self.reversed {
+                Vector2 {
+                    x: self.board_data.rect.width as f32 - point.x,
+                    y: self.board_data.rect.height as f32 - point.y,
+                }
+            } else {
+                point
+            };
+            let pos = helpers::get_board_pos(&self.board_data, point);
+            Some(pos)
+        } else {
+            None
+        }
+    }
     fn update_mouse(&mut self) {
         if self
             .window_handle
             .is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT)
             && self.selected_piece.is_none()
         {
-            let mouse_pos = self.window_handle.get_mouse_position();
-            if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
-                let pos = helpers::get_board_pos(&self.board_data, point);
-                // self.window_handle.trace_log(
-                //     TraceLogLevel::LOG_DEBUG,
-                //     &format!(
-                //         "mouse_pos: {:?}\npoint: {:?}\npos: {:?}",
-                //         mouse_pos, point, pos
-                //     ),
-                // );
+            if let Some(pos) = self.board_pos() {
                 self.handle_select(pos);
             }
         }
@@ -183,11 +199,14 @@ impl GameState {
             .is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT)
             && self.selected_piece.is_some()
         {
-            let mouse_pos = self.window_handle.get_mouse_position();
-            if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
-                let pos = helpers::get_board_pos(&self.board_data, point);
+            if let Some(pos) = self.board_pos() {
                 self.handle_place(pos);
             }
+            // let mouse_pos = self.window_handle.get_mouse_position();
+            // if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
+            //     let pos = helpers::get_board_pos(&self.board_data, point);
+            //     self.handle_place(pos);
+            // }
         }
     }
 
