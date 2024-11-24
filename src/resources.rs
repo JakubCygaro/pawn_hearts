@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
-use raylib::texture::{Image, Texture2D, WeakTexture2D};
-use std::fs;
+use raylib::texture::Texture2D;
 use std::{collections::HashMap, path::PathBuf, rc::Rc};
 pub trait ResourceLoader {
     fn get_texture(

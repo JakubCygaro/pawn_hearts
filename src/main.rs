@@ -3,11 +3,11 @@ mod data;
 mod helpers;
 mod resources;
 
-use board::{BoardPos, ChessBoardCell, MoveBuilder};
+use board::{BoardPos, MoveBuilder};
 use raylib::{
     ffi::{MouseButton, TraceLogLevel},
     math::{Rectangle, Vector2},
-    prelude::{self as ray, color::Color, RaylibDraw, RaylibDrawHandle},
+    prelude::{self as ray, color::Color, RaylibDraw},
     RaylibHandle, RaylibThread,
 };
 use resources::*;
@@ -64,7 +64,7 @@ impl GameState {
             loader: Box::new(loader),
             board_data: board::BoardRenderData::default(),
             selected_piece: None,
-            reversed: true,
+            reversed: false,
         }
     }
     pub fn run(&mut self) {

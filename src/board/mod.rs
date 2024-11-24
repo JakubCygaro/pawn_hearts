@@ -1,9 +1,7 @@
 mod move_validation;
 
-use std::collections::HashMap;
-
 use anyhow::anyhow;
-use lazy_static::lazy_static;
+use move_validation::{SideEffect, ValidationResult};
 use raylib::prelude::*;
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -107,7 +105,7 @@ impl ChessBoardCell {
                 ChessPiece::Bishop => Some("bishop_black.png"),
                 ChessPiece::King => Some("king_black.png"),
                 ChessPiece::Knight => Some("knight_black.png"),
-                ChessPiece::Pawn => Some("pawn_black.png"),
+                ChessPiece::Pawn(_) => Some("pawn_black.png"),
                 ChessPiece::Queen => Some("queen_black.png"),
                 ChessPiece::Rook => Some("rook_black.png"),
             },
@@ -115,7 +113,7 @@ impl ChessBoardCell {
                 ChessPiece::Bishop => Some("bishop_white.png"),
                 ChessPiece::King => Some("king_white.png"),
                 ChessPiece::Knight => Some("knight_white.png"),
-                ChessPiece::Pawn => Some("pawn_white.png"),
+                ChessPiece::Pawn(_) => Some("pawn_white.png"),
                 ChessPiece::Queen => Some("queen_white.png"),
                 ChessPiece::Rook => Some("rook_white.png"),
             },
@@ -125,8 +123,15 @@ impl ChessBoardCell {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LongStart {
+    Before,
+    RightNow,
+    After,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChessPiece {
-    Pawn,
+    Pawn(LongStart),
     Bishop,
     Knight,
     Rook,
@@ -153,7 +158,7 @@ impl Default for BoardRenderData {
 
 macro_rules! p {
     (BP) => {
-        ChessBoardCell::Black(ChessPiece::Pawn)
+        ChessBoardCell::Black(ChessPiece::Pawn(LongStart::Before))
     };
     (BR) => {
         ChessBoardCell::Black(ChessPiece::Rook)
@@ -174,7 +179,7 @@ macro_rules! p {
         ChessBoardCell::Empty
     };
     (WP) => {
-        ChessBoardCell::White(ChessPiece::Pawn)
+        ChessBoardCell::White(ChessPiece::Pawn(LongStart::Before))
     };
     (WR) => {
         ChessBoardCell::White(ChessPiece::Rook)
@@ -230,23 +235,42 @@ impl ChessBoard {
     }
 
     pub fn move_piece(&mut self, m: BoardMove) {
-        let Some(target) = self.validate_move(m) else {
+        let ValidationResult::Valid(Some(side_effects)) = self.validate_move(m) else {
             return;
         };
-        let piece = self.take_from(m.from).unwrap();
-        self.place_at(target, piece).unwrap()
+
+        for side_effect in side_effects.into_iter().rev() {
+            match side_effect {
+                SideEffect::Delete(d) => {
+                    let deleted = self.take_from(d);
+                    println!("Deleted: {:?}", deleted);
+                }
+                SideEffect::Move(m) => {
+                    let piece = self.take_from(m.from).unwrap();
+                    self.place_at(m.to, piece).unwrap();
+                    println!("Moved {:?} from {:?} to {:?}", piece, m.from, m.to);
+                }
+                SideEffect::SetAt(p, piece) => {
+                    self.place_at(p, piece).unwrap();
+                    println!("Set {:?} at {:?}", piece, p)
+                }
+            }
+        }
+        // let Some(target) = self.validate_move(m) else {
+        //     return;
+        // };
     }
 
-    fn validate_move(&self, m: BoardMove) -> Option<BoardPos> {
+    fn validate_move(&self, m: BoardMove) -> ValidationResult {
         if m.to == m.from {
-            return None;
+            return ValidationResult::NotValid;
         }
         let from_cell = self.at(m.from);
         let Some(from_cell) = from_cell else {
-            return None;
+            return ValidationResult::NotValid;
         };
         if *from_cell == ChessBoardCell::Empty {
-            return None;
+            return ValidationResult::NotValid;
         }
 
         if let Some(at_cell) = self.at(m.to) {
@@ -257,16 +281,26 @@ impl ChessBoard {
                 | (ChessBoardCell::White(_), ChessBoardCell::Black(_)) => false,
                 _ => true,
             } {
-                return None;
+                return ValidationResult::NotValid;
             }
             return if move_validation::MOVEMAP.contains_key(from_cell) {
                 println!("moving: {:?}", from_cell);
-                move_validation::MOVEMAP[from_cell](m, &self).then(|| m.to)
+                let res = move_validation::MOVEMAP[from_cell](m, &self); //.then(|| m.to)
+                return match res {
+                    ValidationResult::Valid(Some(mut se)) => {
+                        se.push(SideEffect::Move(m));
+                        ValidationResult::Valid(Some(se))
+                    }
+                    ValidationResult::Valid(None) => {
+                        ValidationResult::Valid(Some(vec![SideEffect::Move(m)]))
+                    }
+                    ValidationResult::NotValid => ValidationResult::NotValid,
+                };
             } else {
-                None
+                ValidationResult::NotValid
             };
         } else {
-            None
+            ValidationResult::NotValid
         }
     }
 }
