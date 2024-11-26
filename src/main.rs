@@ -172,8 +172,8 @@ impl GameState {
         if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
             let point = if self.reversed {
                 Vector2 {
-                    x: self.board_data.rect.width as f32 - point.x,
-                    y: self.board_data.rect.height as f32 - point.y,
+                    x: self.board_data.rect.width - point.x,
+                    y: self.board_data.rect.height - point.y,
                 }
             } else {
                 point
