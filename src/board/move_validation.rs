@@ -52,8 +52,16 @@ lazy_static! {
             (Cell::White(Piece::Knight), knight as MoveChecker),
             (Cell::Black(Piece::Queen), queen as MoveChecker),
             (Cell::White(Piece::Queen), queen as MoveChecker),
-            (Cell::Black(Piece::King), king as MoveChecker),
-            (Cell::White(Piece::King), king as MoveChecker),
+            (Cell::Black(Piece::King(true)), king as MoveChecker),
+            (Cell::White(Piece::King(true)), king as MoveChecker),
+            (
+                Cell::Black(Piece::King(false)),
+                black_king_can_castle as MoveChecker,
+            ),
+            (
+                Cell::White(Piece::King(false)),
+                white_king_can_castle as MoveChecker,
+            ),
         ])
     };
 }
@@ -258,6 +266,124 @@ fn queen(mv: Move, b: &Board) -> ValidationResult {
     // } else {
     //     ValidationResult::NotValid
     // }
+}
+fn black_king_can_castle(mv: Move, b: &Board) -> ValidationResult {
+    //close castling
+    if mv.from.row == 0 && mv.from.col == 4 && mv.to.row == 0 && mv.to.col == 6 {
+        let Some(ChessBoardCell::Black(ChessPiece::Rook)) = b.at(BoardPos { row: 0, col: 7 })
+        else {
+            return ValidationResult::NotValid;
+        };
+        for c in bisex_range(0, mv.columns).skip(1) {
+            let to_check = BoardPos {
+                row: mv.from.row,
+                col: (mv.from.col as isize + c) as usize,
+            };
+            let Some(Cell::Empty) = b.at(to_check) else {
+                return ValidationResult::NotValid;
+            };
+        }
+        return ValidationResult::Valid(Some(vec![
+            SideEffect::Move(BoardMove {
+                from: BoardPos { row: 0, col: 7 },
+                to: BoardPos { row: 0, col: 5 },
+                rows: 0,
+                columns: -2,
+            }),
+            SideEffect::SetAt(mv.to, ChessBoardCell::Black(ChessPiece::King(true))),
+        ]));
+    } else if mv.from.row == 0 && mv.from.col == 4 && mv.to.row == 0 && mv.to.col == 1 {
+        //long castling
+        let Some(ChessBoardCell::Black(ChessPiece::Rook)) = b.at(BoardPos { row: 0, col: 0 })
+        else {
+            return ValidationResult::NotValid;
+        };
+        for c in bisex_range(0, mv.columns).skip(1) {
+            let to_check = BoardPos {
+                row: mv.from.row,
+                col: (mv.from.col as isize + c) as usize,
+            };
+            let Some(Cell::Empty) = b.at(to_check) else {
+                return ValidationResult::NotValid;
+            };
+        }
+        return ValidationResult::Valid(Some(vec![
+            SideEffect::Move(BoardMove {
+                from: BoardPos { row: 0, col: 0 },
+                to: BoardPos { row: 0, col: 2 },
+                rows: 0,
+                columns: 2,
+            }),
+            SideEffect::SetAt(mv.to, ChessBoardCell::Black(ChessPiece::King(true))),
+        ]));
+    }
+    if let ValidationResult::Valid(None) = king(mv, b) {
+        ValidationResult::Valid(Some(vec![SideEffect::SetAt(
+            mv.to,
+            ChessBoardCell::Black(ChessPiece::King(true)),
+        )]))
+    } else {
+        ValidationResult::NotValid
+    }
+}
+fn white_king_can_castle(mv: Move, b: &Board) -> ValidationResult {
+    //close castling
+    if mv.from.row == 7 && mv.from.col == 4 && mv.to.row == 7 && mv.to.col == 6 {
+        let Some(ChessBoardCell::White(ChessPiece::Rook)) = b.at(BoardPos { row: 7, col: 7 })
+        else {
+            return ValidationResult::NotValid;
+        };
+        for c in bisex_range(0, mv.columns).skip(1) {
+            let to_check = BoardPos {
+                row: mv.from.row,
+                col: (mv.from.col as isize + c) as usize,
+            };
+            let Some(Cell::Empty) = b.at(to_check) else {
+                return ValidationResult::NotValid;
+            };
+        }
+        return ValidationResult::Valid(Some(vec![
+            SideEffect::Move(BoardMove {
+                from: BoardPos { row: 7, col: 7 },
+                to: BoardPos { row: 7, col: 5 },
+                rows: 0,
+                columns: -2,
+            }),
+            SideEffect::SetAt(mv.to, ChessBoardCell::White(ChessPiece::King(true))),
+        ]));
+    } else if mv.from.row == 7 && mv.from.col == 4 && mv.to.row == 7 && mv.to.col == 1 {
+        //long castling
+        let Some(ChessBoardCell::White(ChessPiece::Rook)) = b.at(BoardPos { row: 7, col: 0 })
+        else {
+            return ValidationResult::NotValid;
+        };
+        for c in bisex_range(0, mv.columns).skip(1) {
+            let to_check = BoardPos {
+                row: mv.from.row,
+                col: (mv.from.col as isize + c) as usize,
+            };
+            let Some(Cell::Empty) = b.at(to_check) else {
+                return ValidationResult::NotValid;
+            };
+        }
+        return ValidationResult::Valid(Some(vec![
+            SideEffect::Move(BoardMove {
+                from: BoardPos { row: 7, col: 0 },
+                to: BoardPos { row: 7, col: 2 },
+                rows: 0,
+                columns: 2,
+            }),
+            SideEffect::SetAt(mv.to, ChessBoardCell::White(ChessPiece::King(true))),
+        ]));
+    }
+    if let ValidationResult::Valid(None) = king(mv, b) {
+        ValidationResult::Valid(Some(vec![SideEffect::SetAt(
+            mv.to,
+            ChessBoardCell::White(ChessPiece::King(true)),
+        )]))
+    } else {
+        ValidationResult::NotValid
+    }
 }
 
 fn king(mv: Move, _: &Board) -> ValidationResult {

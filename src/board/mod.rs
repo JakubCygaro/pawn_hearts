@@ -103,7 +103,7 @@ impl ChessBoardCell {
         match self {
             ChessBoardCell::Black(p) => match p {
                 ChessPiece::Bishop => Some("bishop_black.png"),
-                ChessPiece::King => Some("king_black.png"),
+                ChessPiece::King(_) => Some("king_black.png"),
                 ChessPiece::Knight => Some("knight_black.png"),
                 ChessPiece::Pawn(_) => Some("pawn_black.png"),
                 ChessPiece::Queen => Some("queen_black.png"),
@@ -111,7 +111,7 @@ impl ChessBoardCell {
             },
             ChessBoardCell::White(p) => match p {
                 ChessPiece::Bishop => Some("bishop_white.png"),
-                ChessPiece::King => Some("king_white.png"),
+                ChessPiece::King(_) => Some("king_white.png"),
                 ChessPiece::Knight => Some("knight_white.png"),
                 ChessPiece::Pawn(_) => Some("pawn_white.png"),
                 ChessPiece::Queen => Some("queen_white.png"),
@@ -136,7 +136,7 @@ pub enum ChessPiece {
     Knight,
     Rook,
     Queen,
-    King,
+    King(bool),
 }
 
 pub struct BoardRenderData {
@@ -173,7 +173,7 @@ macro_rules! p {
         ChessBoardCell::Black(ChessPiece::Queen)
     };
     (BKI) => {
-        ChessBoardCell::Black(ChessPiece::King)
+        ChessBoardCell::Black(ChessPiece::King(false))
     };
     (E) => {
         ChessBoardCell::Empty
@@ -194,7 +194,7 @@ macro_rules! p {
         ChessBoardCell::White(ChessPiece::Queen)
     };
     (WKI) => {
-        ChessBoardCell::White(ChessPiece::King)
+        ChessBoardCell::White(ChessPiece::King(false))
     };
 }
 
