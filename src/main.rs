@@ -1,6 +1,7 @@
 mod board;
 mod data;
 mod helpers;
+mod network;
 mod resources;
 
 use board::{BoardPos, MoveBuilder};
@@ -11,7 +12,9 @@ use raylib::{
     RaylibHandle, RaylibThread,
 };
 use resources::*;
-use std::{path::PathBuf, str::FromStr};
+use std::{collections::VecDeque, path::PathBuf, str::FromStr};
+
+use self::network::{Message, NetworkConnection};
 
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 800;
@@ -19,7 +22,10 @@ const HEIGHT: i32 = 800;
 const MARGIN: f32 = 0.1;
 
 fn main() {
-    let mut game = GameState::init(WIDTH, HEIGHT);
+    let args = std::env::args().collect::<Vec<_>>();
+    let adress = args[1].clone();
+    let host = args[2].parse::<bool>().unwrap();
+    let mut game = Game::init(WIDTH, HEIGHT, &adress, host);
     game.run()
 }
 
@@ -29,46 +35,75 @@ struct Selection {
     taken_from: board::BoardPos,
 }
 
-struct GameState {
+struct Game {
     board: board::ChessBoard,
     window_handle: RaylibHandle,
     window_thread: RaylibThread,
     width: i32,
     height: i32,
     loader: Box<dyn ResourceLoader>,
+    network_conn: network::NetworkConnection,
+    message_queue: VecDeque<Message>,
     board_data: board::BoardRenderData,
     selected_piece: Option<Selection>,
     reversed: bool,
+    state: State,
+    is_host: bool,
 }
-impl GameState {
-    pub fn init(width: i32, height: i32) -> Self {
+#[derive(PartialEq, Clone)]
+enum State {
+    WaitConnection,
+    Move,
+    WaitMove,
+}
+impl Game {
+    pub fn init(width: i32, height: i32, address: &str, host: bool) -> Self {
         let (mut window_handle, mut window_thread) = ray::init()
             .width(width)
             .height(height)
             .title("Pawn Hearts")
             .msaa_4x()
             .resizable()
-            .log_level(TraceLogLevel::LOG_DEBUG)
+            .log_level(TraceLogLevel::LOG_NONE)
             .build();
         window_handle.set_target_fps(60);
         let mut loader = DirectoryResourceLoader::new(PathBuf::from_str("data/").unwrap());
         loader
             .load_all_root(&mut window_handle, &mut window_thread)
             .expect("could not load all textures");
+
+        let (net, state) = if host {
+            (
+                network::NetworkConnection::host(address).unwrap(),
+                State::WaitConnection,
+            )
+        } else {
+            (
+                network::NetworkConnection::client(address).unwrap(),
+                State::WaitConnection,
+            )
+        };
+
         Self {
             board: board::ChessBoard::new_full(),
-            window_handle: window_handle,
-            window_thread: window_thread,
-            width: width,
-            height: height,
+            window_handle,
+            window_thread,
+            width,
+            height,
             loader: Box::new(loader),
             board_data: board::BoardRenderData::default(),
             selected_piece: None,
             reversed: false,
+            network_conn: net,
+            message_queue: VecDeque::new(),
+            state,
+            is_host: host,
         }
     }
     pub fn run(&mut self) {
         self.update_board_data();
+        println!("connecting...");
+        //self.network_conn.connect().unwrap();
         while !self.window_handle.window_should_close() {
             self.update();
             self.draw();
@@ -79,7 +114,38 @@ impl GameState {
         if self.window_handle.is_window_resized() {
             self.resize();
         }
+        match self.state {
+            State::WaitConnection if self.is_host => {
+                if let Some(_) = self.network_conn.accept_connection().unwrap() {
+                    self.state = State::Move;
+                }
+            }
+            State::WaitConnection if !self.is_host => {
+                if let Some(_) = self.network_conn.client_connect().unwrap() {
+                    self.state = State::WaitConnection;
+                }
+            }
+            _ => {
+                // poll network
+                if let Some(msg) = self.network_conn.recv().unwrap() {
+                    self.message_queue.push_back(msg);
+                }
+                while let Some(msg) = self.message_queue.pop_front() {
+                    if let Some(new_state) = self.handle_message(msg) {
+                        self.state = new_state;
+                    }
+                }
+            }
+        }
         self.update_mouse();
+    }
+    fn handle_message(&mut self, msg: Message) -> Option<State> {
+        match msg {
+            Message::Moved(m) => {
+                self.board.move_piece(m);
+                Some(State::WaitMove)
+            }
+        }
     }
 
     fn draw(&mut self) {
@@ -189,6 +255,7 @@ impl GameState {
             .window_handle
             .is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT)
             && self.selected_piece.is_none()
+            && self.state == State::Move
         {
             if let Some(pos) = self.board_pos() {
                 self.handle_select(pos);

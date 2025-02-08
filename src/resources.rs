@@ -66,7 +66,7 @@ fn get_files_recurse(path: &PathBuf) -> Result<Vec<PathBuf>> {
             let mut inner = get_files_recurse(&f_path)?;
             ret.append(&mut inner);
         } else {
-            println!("{:?}", &f_path);
+            //println!("{:?}", &f_path);
             let f_path = f_path.strip_prefix(path).unwrap().to_owned();
             ret.push(f_path);
         }

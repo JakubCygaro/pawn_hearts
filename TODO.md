@@ -7,3 +7,10 @@ with his pieces at the bottom (reversing the iterator in the draw method does th
 - write the actual network logic (maybe like a state machine? where the game either does client side move logic and passes it to the peer or waits for a response from the peer and applies the move on its side)
 
 Most of the web logic can be done by just passing the moves since each game instance validates its moves before even doing them. So theoretically a host does not need to validate their move since it's already been validated by the peer. But the protocol should enforce bilateral validations which are either accepted by the server or forbidden by it. That way a non-host has to wait for a response from the server that tells it whether the move is valid.
+
+# Network message format
+
+session id: 4bytes
+message kind: 1byte
+message data:
+move 4 usize, 2 isize -> 6 bytes

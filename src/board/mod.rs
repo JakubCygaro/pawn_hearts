@@ -1,6 +1,7 @@
 mod move_validation;
 
 use anyhow::anyhow;
+use bytes::BufMut;
 use move_validation::{SideEffect, ValidationResult};
 use raylib::prelude::*;
 
@@ -23,6 +24,16 @@ impl BoardMove {
             rows,
             columns,
         }
+    }
+    pub fn to_bytes(&self) -> bytes::Bytes {
+        let mut bytes = bytes::BytesMut::with_capacity(6);
+        bytes.put_u8(self.from.row as u8);
+        bytes.put_u8(self.from.col as u8);
+        bytes.put_u8(self.to.row as u8);
+        bytes.put_u8(self.to.col as u8);
+        bytes.put_u8(self.rows as u8);
+        bytes.put_u8(self.columns as u8);
+        return bytes.into();
     }
 }
 
