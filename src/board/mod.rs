@@ -5,7 +5,7 @@ use bytes::BufMut;
 use move_validation::{SideEffect, ValidationResult};
 use raylib::prelude::*;
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct BoardMove {
     from: BoardPos,
     to: BoardPos,
@@ -244,10 +244,11 @@ impl ChessBoard {
             Ok(())
         }
     }
-
-    pub fn move_piece(&mut self, m: BoardMove) {
+    /// returns a value indicating whether the move passed validation
+    /// and thus was executed
+    pub fn move_piece(&mut self, m: BoardMove) -> bool {
         let ValidationResult::Valid(Some(side_effects)) = self.validate_move(m) else {
-            return;
+            return false;
         };
 
         for side_effect in side_effects.into_iter().rev() {
@@ -267,6 +268,7 @@ impl ChessBoard {
                 }
             }
         }
+        true
         // let Some(target) = self.validate_move(m) else {
         //     return;
         // };

@@ -14,7 +14,7 @@ use raylib::{
 use resources::*;
 use std::{collections::VecDeque, path::PathBuf, str::FromStr};
 
-use self::network::{Message, NetworkConnection};
+use self::{board::BoardMove, network::{Message, NetworkConnection}};
 
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 800;
@@ -54,6 +54,7 @@ struct Game {
 enum State {
     WaitConnection,
     Move,
+    MovePending(BoardMove),
     WaitMove,
 }
 impl Game {
@@ -93,7 +94,7 @@ impl Game {
             loader: Box::new(loader),
             board_data: board::BoardRenderData::default(),
             selected_piece: None,
-            reversed: false,
+            reversed: !host,
             network_conn: net,
             message_queue: VecDeque::new(),
             state,
@@ -116,34 +117,44 @@ impl Game {
         }
         match self.state {
             State::WaitConnection if self.is_host => {
-                if let Some(_) = self.network_conn.accept_connection().unwrap() {
+                if self.network_conn.accept_connection().unwrap().is_some() {
                     self.state = State::Move;
                 }
             }
             State::WaitConnection if !self.is_host => {
-                if let Some(_) = self.network_conn.client_connect().unwrap() {
-                    self.state = State::WaitConnection;
+                if self.network_conn.client_connect().unwrap().is_some() {
+                    self.state = State::WaitMove;
                 }
             }
-            _ => {
-                // poll network
-                if let Some(msg) = self.network_conn.recv().unwrap() {
-                    self.message_queue.push_back(msg);
+            State::MovePending(m) => {
+                if self.network_conn.send(Message::Moved(m)).unwrap().is_some() {
+                    println!("move sent");
+                    self.state = State::WaitMove;
                 }
-                while let Some(msg) = self.message_queue.pop_front() {
-                    if let Some(new_state) = self.handle_message(msg) {
-                        self.state = new_state;
-                    }
+            },
+            _ => {
+            }
+        }
+        if self.state != State::WaitConnection {
+            // poll network
+            if let Some(msg) = self.network_conn.recv().unwrap() {
+                println!("recieved message: {:?}", msg);
+                self.message_queue.push_back(msg);
+            }
+            while let Some(msg) = self.message_queue.pop_front() {
+                if let Some(new_state) = self.handle_message(msg) {
+                    self.state = new_state;
                 }
             }
         }
         self.update_mouse();
     }
     fn handle_message(&mut self, msg: Message) -> Option<State> {
+        println!("handle message: {:?}", msg);
         match msg {
             Message::Moved(m) => {
                 self.board.move_piece(m);
-                Some(State::WaitMove)
+                Some(State::Move)
             }
         }
     }
@@ -310,20 +321,11 @@ impl Game {
             self.board
                 .place_at(selection.taken_from, selection.piece)
                 .unwrap();
-            self.board.move_piece(m);
-
-            // //place selection in empty cell
-            // if let Some(ChessBoardCell::Empty) = self.board.at(pos) {
-            //     self.board
-            //         .place_at(pos, self.selected_piece.take().unwrap().piece)
-            //         .unwrap();
-            // } else {
-            //     //put it back where it came from if something is there
-            //     let selection = self.selected_piece.take().unwrap();
-            //     self.board
-            //         .place_at(selection.taken_from, selection.piece)
-            //         .unwrap();
-            // }
+            if self.board.move_piece(m) {
+                println!("move pending!");
+                self.state = State::MovePending(m);
+            }
+            
         }
     }
 

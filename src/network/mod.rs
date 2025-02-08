@@ -1,32 +1,16 @@
 use crate::board::{BoardMove, BoardPos};
 use anyhow::{anyhow, bail, Result};
-use bytes::Bytes;
-use rand::seq::IndexedRandom;
-use std::error::Error;
+use bytes::{BufMut, Bytes, BytesMut};
 use std::io::ErrorKind;
 use std::net::UdpSocket;
-//pub mod client;
-//pub mod host;
-//pub(in crate::network) enum NetworkOutcome {
-//
-//}
-//pub trait NetworkConnection {
-//
-//}
-pub enum Message {
-    Moved(super::board::BoardMove), // 0x01
-}
-fn encode_message(msg: &Message) -> Bytes {
-    match *msg {
-        Message::Moved(m) => {}
-    }
-    todo!()
-}
+
+
 #[derive(PartialEq, Eq)]
 pub enum ConnectionVariant {
     Host,
     Client,
 }
+#[derive(PartialEq, Eq)]
 enum ConnectionState {
     NotConnected,
     WaitingOnClient,
@@ -79,7 +63,7 @@ impl NetworkConnection {
                 }
                 self.sock.connect(peer)?;
                 self.state = ConnectionState::WaitingOnClient;
-                Ok(Some(()))
+                Ok(None)
             }
             ConnectionState::WaitingOnClient => {
                 self.buf[..4].copy_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
@@ -89,6 +73,7 @@ impl NetworkConnection {
                 if let Err(e) = res {
                     if e.kind() == ErrorKind::WouldBlock {
                         self.state = ConnectionState::Connected;
+                        self.buf.iter_mut().for_each(|b| *b = 0);
                         return Ok(Some(()));
                     } else {
                         anyhow::bail!(e)
@@ -134,7 +119,7 @@ impl NetworkConnection {
                     }
                     Ok(_) => {
                         self.state = ConnectionState::WaitingOnHost;
-                        Ok(Some(()))
+                        Ok(None)
                     }
                 }
             }
@@ -167,15 +152,19 @@ impl NetworkConnection {
         }
     }
     pub fn recv(&mut self) -> Result<Option<Message>> {
+        if self.state != ConnectionState::Connected {
+            bail!("socket not connected with a peer")
+        }
         match self.sock.recv(&mut self.buf) {
             Ok(n) => {
+                println!("recieved something");
                 if n < 5 {
                     return Ok(None);
                 };
                 if self.buf[..4] != self.session_id {
                     return Ok(None);
                 }
-                if let Ok(msg) = decode_message(&self.buf[5..n]) {
+                if let Ok(msg) = decode_message(&self.buf[4..n]) {
                     self.buf.fill(0);
                     Ok(Some(msg))
                 } else {
@@ -187,7 +176,15 @@ impl NetworkConnection {
         }
     }
     pub fn send(&mut self, msg: Message) -> Result<Option<()>> {
-        match self.sock.send(encode_message(&msg).iter().as_slice()) {
+        if self.state != ConnectionState::Connected {
+            bail!("socket not connected with a peer")
+        }
+        let mut bytes = BytesMut::new();
+        bytes.put(self.session_id.as_slice());
+        let encoded_message = encode_message(&msg);
+        let encoded_message = encoded_message.iter().as_slice();
+        bytes.put(encoded_message);
+        match self.sock.send(&bytes) {
             Ok(_) => Ok(Some(())),
             Err(e) if e.kind() == ErrorKind::WouldBlock => Ok(None),
             Err(e) => bail!(e),
@@ -211,4 +208,18 @@ fn decode_message(bytes: &[u8]) -> Result<Message> {
         }
         _ => Err(anyhow!("invalid message kind")),
     }
+}
+#[derive(Debug)]
+pub enum Message {
+    Moved(super::board::BoardMove), // 0x01
+}
+fn encode_message(msg: &Message) -> Bytes {
+    let mut bytes = BytesMut::new();
+    match *msg {
+        Message::Moved(m) => {
+            bytes.put_u8(0x01);
+            bytes.put(m.to_bytes());
+        }
+    }
+    bytes.into()
 }
