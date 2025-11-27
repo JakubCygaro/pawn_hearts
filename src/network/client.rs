@@ -1,13 +1,11 @@
-use super::{NetBuf, NetworkConnection, SessId};
+use super::{NetBuf, SessId};
 use anyhow::{anyhow, Result};
 use std::net::{SocketAddr, TcpListener, TcpStream, UdpSocket};
 use std::str::FromStr;
 
 pub enum ClientConnection {
     Begin(TcpStream, SocketAddr, NetBuf),
-    // HandshakeWrite(TcpStream, SocketAddr, SessId, NetBuf),
-    SessionIdReak(TcpStream, SocketAddr, NetBuf),
-    // HandshakeRespond(TcpStream, SocketAddr, SessId, NetBuf),
+    SessionIdRead(TcpStream, SocketAddr, NetBuf),
     Connected(TcpStream, SocketAddr, SessId, NetBuf, usize),
 }
 

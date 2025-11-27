@@ -10,7 +10,7 @@ use raylib::{
 use super::resources::*;
 use std::{collections::VecDeque, path::PathBuf, str::FromStr};
 
-use super::{board::BoardMove, network::{Message, NetworkConnection}};
+use super::{board::BoardMove, network::{Message}};
 ///
 ///Margin between the board and window borders
 const MARGIN: f32 = 0.1;
@@ -28,7 +28,6 @@ pub struct Game {
     width: i32,
     height: i32,
     loader: Box<dyn ResourceLoader>,
-    message_queue: VecDeque<Message>,
     board_data: board::BoardRenderData,
     selected_piece: Option<Selection>,
     reversed: bool,
@@ -66,19 +65,8 @@ impl Game {
             board_data: board::BoardRenderData::default(),
             selected_piece: None,
             reversed: false,
-            message_queue: VecDeque::new(),
         }
     }
-    pub fn run(&mut self) {
-        self.update_board_data();
-        println!("connecting...");
-        //self.network_conn.connect().unwrap();
-        while !self.window_handle.window_should_close() {
-            self.update();
-            self.draw();
-        }
-    }
-
     pub fn update(&mut self) {
         if self.window_handle.is_window_resized() {
             self.resize();
