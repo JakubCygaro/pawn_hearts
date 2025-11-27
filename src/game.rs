@@ -28,12 +28,10 @@ pub struct Game {
     width: i32,
     height: i32,
     loader: Box<dyn ResourceLoader>,
-    network_conn: network::NetworkConnection,
     message_queue: VecDeque<Message>,
     board_data: board::BoardRenderData,
     selected_piece: Option<Selection>,
     reversed: bool,
-    state: State,
 }
 #[derive(PartialEq, Clone)]
 enum State {
@@ -58,18 +56,6 @@ impl Game {
             .load_all_root(&mut window_handle, &mut window_thread)
             .expect("could not load all textures");
 
-        let (net, state) = if host {
-            (
-                network::NetworkConnection::host(address).unwrap(),
-                State::WaitConnection,
-            )
-        } else {
-            (
-                network::NetworkConnection::client(address).unwrap(),
-                State::WaitConnection,
-            )
-        };
-
         Self {
             board: board::ChessBoard::new_full(),
             window_handle,
@@ -80,9 +66,7 @@ impl Game {
             board_data: board::BoardRenderData::default(),
             selected_piece: None,
             reversed: false,
-            network_conn: net,
             message_queue: VecDeque::new(),
-            state,
         }
     }
     pub fn run(&mut self) {
@@ -99,38 +83,38 @@ impl Game {
         if self.window_handle.is_window_resized() {
             self.resize();
         }
-        match self.state {
-            State::WaitConnection if self.is_host => {
-                if self.network_conn.accept_connection().unwrap().is_some() {
-                    self.state = State::Move;
-                }
-            }
-            State::WaitConnection if !self.is_host => {
-                if self.network_conn.client_connect().unwrap().is_some() {
-                    self.state = State::WaitMove;
-                }
-            }
-            State::MovePending(m) => {
-                if self.network_conn.send(Message::Moved(m)).unwrap().is_some() {
-                    println!("move sent");
-                    self.state = State::WaitMove;
-                }
-            },
-            _ => {
-            }
-        }
-        if self.state != State::WaitConnection {
-            // poll network
-            if let Some(msg) = self.network_conn.recv().unwrap() {
-                println!("recieved message: {:?}", msg);
-                self.message_queue.push_back(msg);
-            }
-            while let Some(msg) = self.message_queue.pop_front() {
-                if let Some(new_state) = self.handle_message(msg) {
-                    self.state = new_state;
-                }
-            }
-        }
+        // match self.state {
+        //     State::WaitConnection if self.is_host => {
+        //         if self.network_conn.accept_connection().unwrap().is_some() {
+        //             self.state = State::Move;
+        //         }
+        //     }
+        //     State::WaitConnection if !self.is_host => {
+        //         if self.network_conn.client_connect().unwrap().is_some() {
+        //             self.state = State::WaitMove;
+        //         }
+        //     }
+        //     State::MovePending(m) => {
+        //         if self.network_conn.send(Message::Moved(m)).unwrap().is_some() {
+        //             println!("move sent");
+        //             self.state = State::WaitMove;
+        //         }
+        //     },
+        //     _ => {
+        //     }
+        // }
+        // if self.state != State::WaitConnection {
+        //     // poll network
+        //     if let Some(msg) = self.network_conn.recv().unwrap() {
+        //         println!("recieved message: {:?}", msg);
+        //         self.message_queue.push_back(msg);
+        //     }
+        //     while let Some(msg) = self.message_queue.pop_front() {
+        //         if let Some(new_state) = self.handle_message(msg) {
+        //             self.state = new_state;
+        //         }
+        //     }
+        // }
         self.update_mouse();
     }
     fn handle_message(&mut self, msg: Message) -> Option<State> {
@@ -250,7 +234,7 @@ impl Game {
             .window_handle
             .is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT)
             && self.selected_piece.is_none()
-            && self.state == State::Move
+            // && self.state == State::Move
         {
             if let Some(pos) = self.board_pos() {
                 self.handle_select(pos);
@@ -307,7 +291,7 @@ impl Game {
                 .unwrap();
             if self.board.move_piece(m) {
                 println!("move pending!");
-                self.state = State::MovePending(m);
+                // self.state = State::MovePending(m);
             }
             
         }

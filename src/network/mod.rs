@@ -5,11 +5,11 @@ use std::io::ErrorKind;
 use std::net::{TcpListener, UdpSocket};
 
 pub type SessId = [u8; 4];
-pub type NetBuf = [u8; 128];
+pub type NetBuf = [u8; NETBUF_SIZE];
 pub const MAGIC_N: [u8; 4] = [0xDE, 0xAD, 0xBE, 0xEF];
+pub const NETBUF_SIZE: usize = 128;
 pub mod host;
-
-
+pub mod client;
 
 #[derive(PartialEq, Eq)]
 pub enum ConnectionVariant {
