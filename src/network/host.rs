@@ -1,40 +1,29 @@
-use super::NetworkConnection;
+use super::{NetBuf, NetworkConnection, SessId};
 use anyhow::{anyhow, Result};
-use std::net::{UdpSocket};
-use std::sync::mpsc;
-pub struct HostConnection {
-    read_handle: mpsc::Receiver<super::NetworkOutcome>,
-    session_id: [u8; 4],
+use std::net::{SocketAddr, TcpListener, TcpStream, UdpSocket};
+
+pub enum HostConnection {
+    Begin(TcpListener, SessId, NetBuf),
+    HandshakeRead(TcpStream, SocketAddr, SessId, NetBuf),
+    HandshakeRespond(TcpStream, SocketAddr, SessId, NetBuf),
+    Connected(TcpStream, SocketAddr, SessId, NetBuf, usize)
 }
 
 impl HostConnection {
-    pub fn create(address: &str) -> Result<Self> {
-        let conn = UdpSocket::bind(address)?;
-        let session_id: [u8; 4] = rand::random();
-        let mut buf = [0u8; 8];
-        let (recieved, peer) = conn.recv_from(&mut buf)?;
-        if recieved != 5 {
-            return Err(anyhow!("handshake length was improper"));
-        }
-        if buf[0..5] != [0xDE, 0xAD, 0xBE, 0xEF, 0x02] {
-            return Err(anyhow!("handshake failed"));
-        }
-        conn.connect(peer)?;
-        buf[..4].copy_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
-        buf[4..].copy_from_slice(&session_id);
-        println!("sending session_id: {:?}", buf);
-        conn.send(&buf)?;
-        let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move ||{
-           connection_loop(tx); 
-        });
-        Ok(Self {
-            read_handle: rx,
-            session_id: rand::random(),
-        })
+    pub fn new(address: &str) -> Result<Self> {
+        println!("{}", address);
+        let list = TcpListener::bind(address)?;
+        let session_id: SessId = rand::random();
+        list.set_nonblocking(true)?;
+        Ok(Self::Begin (
+            list,
+            session_id,
+            [0; 128]
+        ))
     }
 }
 
-fn connection_loop(tx: mpsc::Sender<super::NetworkOutcome>) {
-
-}
+// state: ConnectionState,
+// list: TcpListener,
+// session_id: [u7; 4],
+// buf: [u7; 128],

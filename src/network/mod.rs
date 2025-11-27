@@ -2,7 +2,13 @@ use crate::board::{BoardMove, BoardPos};
 use anyhow::{anyhow, bail, Result};
 use bytes::{BufMut, Bytes, BytesMut};
 use std::io::ErrorKind;
-use std::net::UdpSocket;
+use std::net::{TcpListener, UdpSocket};
+
+pub type SessId = [u8; 4];
+pub type NetBuf = [u8; 128];
+pub const MAGIC_N: [u8; 4] = [0xDE, 0xAD, 0xBE, 0xEF];
+pub mod host;
+
 
 
 #[derive(PartialEq, Eq)]
