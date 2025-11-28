@@ -1,16 +1,18 @@
+use crate::network::MessageQueue;
+
 use super::board::{self, BoardPos, MoveBuilder};
-use super::network;
 use super::helpers;
+use super::network;
+use super::resources::*;
 use raylib::{
     ffi::{MouseButton, TraceLogLevel},
     math::{Rectangle, Vector2},
     prelude::{self as ray, color::Color, RaylibDraw},
     RaylibHandle, RaylibThread,
 };
-use super::resources::*;
-use std::{collections::VecDeque, path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr};
 
-use super::{board::BoardMove, network::{Message}};
+use super::{board::BoardMove, network::Message};
 ///
 ///Margin between the board and window borders
 const MARGIN: f32 = 0.1;
@@ -31,16 +33,20 @@ pub struct Game {
     board_data: board::BoardRenderData,
     selected_piece: Option<Selection>,
     reversed: bool,
+    is_host: bool,
+    pub recv_mess_queue: network::MessageQueue,
+    pub send_mess_queue: network::MessageQueue,
+    state: State,
 }
 #[derive(PartialEq, Clone)]
 enum State {
-    WaitConnection,
     Move,
     MovePending(BoardMove),
+    WaitReply(BoardMove),
     WaitMove,
 }
 impl Game {
-    pub fn init(width: i32, height: i32) -> Self {
+    pub fn init(width: i32, height: i32, is_host: bool) -> Self {
         let (mut window_handle, mut window_thread) = ray::init()
             .width(width)
             .height(height)
@@ -64,43 +70,38 @@ impl Game {
             loader: Box::new(loader),
             board_data: board::BoardRenderData::default(),
             selected_piece: None,
-            reversed: false,
+            reversed: !is_host,
+            is_host,
+            recv_mess_queue: MessageQueue::new(),
+            send_mess_queue: MessageQueue::new(),
+            state: if is_host {
+                State::Move
+            } else {
+                State::WaitMove
+            },
         }
     }
     pub fn update(&mut self) {
         if self.window_handle.is_window_resized() {
             self.resize();
         }
-        // match self.state {
-        //     State::WaitConnection if self.is_host => {
-        //         if self.network_conn.accept_connection().unwrap().is_some() {
-        //             self.state = State::Move;
-        //         }
-        //     }
-        //     State::WaitConnection if !self.is_host => {
-        //         if self.network_conn.client_connect().unwrap().is_some() {
-        //             self.state = State::WaitMove;
-        //         }
-        //     }
-        //     State::MovePending(m) => {
-        //         if self.network_conn.send(Message::Moved(m)).unwrap().is_some() {
-        //             println!("move sent");
-        //             self.state = State::WaitMove;
-        //         }
-        //     },
-        //     _ => {
-        //     }
-        // }
+        self.state = match self.state {
+            State::MovePending(m) => {
+                self.send_mess_queue.push_front(Message::Moved(m));
+                State::WaitReply(m)
+            }
+            _ => self.state.clone(),
+        };
+        while let Some(msg) = self.recv_mess_queue.pop_front() {
+            if let Some(new_state) = self.handle_message(msg) {
+                self.state = new_state;
+            }
+        }
         // if self.state != State::WaitConnection {
         //     // poll network
         //     if let Some(msg) = self.network_conn.recv().unwrap() {
         //         println!("recieved message: {:?}", msg);
         //         self.message_queue.push_back(msg);
-        //     }
-        //     while let Some(msg) = self.message_queue.pop_front() {
-        //         if let Some(new_state) = self.handle_message(msg) {
-        //             self.state = new_state;
-        //         }
         //     }
         // }
         self.update_mouse();
@@ -109,8 +110,25 @@ impl Game {
         println!("handle message: {:?}", msg);
         match msg {
             Message::Moved(m) => {
-                self.board.move_piece(m);
-                Some(State::Move)
+                if self.is_host && self.state == State::Move {
+                    self.send_mess_queue.push_front(Message::Rejected());
+                    None
+                } else {
+                    self.board.move_piece(m);
+                    Some(State::Move)
+                }
+            }
+            Message::Rejected() => {
+                Some(State::WaitMove)
+            }
+            Message::Accepted() => {
+                match self.state {
+                    State::WaitReply(m) => {
+                        self.board.move_piece(m);
+                        Some(State::WaitMove)
+                    }
+                    _ => None
+                }
             }
         }
     }
@@ -222,7 +240,7 @@ impl Game {
             .window_handle
             .is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT)
             && self.selected_piece.is_none()
-            // && self.state == State::Move
+            && self.state == State::Move
         {
             if let Some(pos) = self.board_pos() {
                 self.handle_select(pos);
@@ -279,9 +297,8 @@ impl Game {
                 .unwrap();
             if self.board.move_piece(m) {
                 println!("move pending!");
-                // self.state = State::MovePending(m);
+                self.state = State::MovePending(m);
             }
-            
         }
     }
 

@@ -2,12 +2,11 @@ use std::io::{ErrorKind, Read, Write};
 
 use super::game::Game;
 use crate::network::client::ClientConnection;
-use crate::network::{self, MessageQueue, NETBUF_SIZE, SessId};
+use crate::network::{self, NETBUF_SIZE, SessId};
 type Conn = ClientConnection;
 
 pub fn run_client(mut game: Game, addr: &str) {
     let mut client = network::client::ClientConnection::new(addr).unwrap();
-    let mut mess_queue = MessageQueue::new();
     println!("client connecting...");
 
     game.update_board_data();
@@ -47,8 +46,13 @@ pub fn run_client(mut game: Game, addr: &str) {
                     }
                 }
             }
-            ClientConnection::Connected(tcp, a, id, buf, cursor) => {
-                println!("connected client, passing...");
+            ClientConnection::Connected(mut tcp, a, id, mut buf, cursor) => {
+                if let Some(mess) = network::recv_message(&mut tcp, &mut buf, &id).unwrap() {
+                    game.recv_mess_queue.push_front(mess);
+                }
+                while let Some(mess) = game.send_mess_queue.pop_front() {
+                    network::send(&mut tcp, mess, &id).unwrap();
+                }
                 ClientConnection::Connected(tcp, a, id, buf, cursor)
             }
         };

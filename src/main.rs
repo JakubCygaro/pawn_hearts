@@ -16,9 +16,9 @@ fn main() {
     let adress = args[1].clone();
     let host = args[2].parse::<bool>().unwrap();
     if host {
-        host_side::run_host(game::Game::init(WIDTH, HEIGHT), &adress)
+        host_side::run_host(game::Game::init(WIDTH, HEIGHT, host), &adress)
     } else {
-        client_side::run_client(game::Game::init(WIDTH, HEIGHT), &adress)
+        client_side::run_client(game::Game::init(WIDTH, HEIGHT, host), &adress)
     }
 }
 

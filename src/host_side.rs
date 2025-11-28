@@ -1,13 +1,11 @@
 use std::io::{ErrorKind, Read, Write};
 
 use crate::network::host::HostConnection;
-use crate::network::{self, MessageQueue, MAGIC_N};
+use crate::network::{self, MAGIC_N};
 
 use super::game::Game;
 pub fn run_host(mut game: Game, addr: &str) {
     let mut host = network::host::HostConnection::new(addr).unwrap();
-    let mut recv_mess_queue = MessageQueue::new();
-    let mut send_mess_queue = MessageQueue::new();
     println!("host connecting...");
 
     game.update_board_data();
@@ -67,9 +65,9 @@ pub fn run_host(mut game: Game, addr: &str) {
             }
             HostConnection::Connected(mut tcp, a, id, mut buf, cursor) => {
                 if let Some(mess) = network::recv_message(&mut tcp, &mut buf, &id).unwrap() {
-                    recv_mess_queue.push_front(mess);
+                    game.recv_mess_queue.push_front(mess);
                 }
-                while let Some(mess) = send_mess_queue.pop_front() {
+                while let Some(mess) = game.send_mess_queue.pop_front() {
                     network::send(&mut tcp, mess, &id).unwrap();
                 }
                 HostConnection::Connected(tcp, a, id, buf, cursor)

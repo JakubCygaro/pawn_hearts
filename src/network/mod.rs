@@ -65,12 +65,20 @@ fn decode_message(bytes: &[u8]) -> Result<Message> {
             ));
             Ok(mess)
         }
+        0x02 if bytes.len() == 1 => {
+            Ok(Message::Rejected())
+        }
+        0x03 if bytes.len() == 1 => {
+            Ok(Message::Accepted())
+        }
         _ => Err(anyhow!("invalid message kind")),
     }
 }
 #[derive(Debug)]
 pub enum Message {
     Moved(super::board::BoardMove), // 0x01
+    Rejected(), // 0x02
+    Accepted(), // 0x03
 }
 fn encode_message(msg: &Message) -> Bytes {
     let mut bytes = BytesMut::new();
@@ -78,6 +86,12 @@ fn encode_message(msg: &Message) -> Bytes {
         Message::Moved(m) => {
             bytes.put_u8(0x01);
             bytes.put(m.to_bytes());
+        }
+        Message::Rejected() => {
+            bytes.put_u8(0x02);
+        }
+        Message::Accepted() => {
+            bytes.put_u8(0x03);
         }
     }
     bytes.into()
