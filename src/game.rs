@@ -97,39 +97,44 @@ impl Game {
                 self.state = new_state;
             }
         }
-        // if self.state != State::WaitConnection {
-        //     // poll network
-        //     if let Some(msg) = self.network_conn.recv().unwrap() {
-        //         println!("recieved message: {:?}", msg);
-        //         self.message_queue.push_back(msg);
-        //     }
-        // }
         self.update_mouse();
     }
     fn handle_message(&mut self, msg: Message) -> Option<State> {
         println!("handle message: {:?}", msg);
-        match msg {
-            Message::Moved(m) => {
-                if self.is_host && self.state == State::Move {
-                    self.send_mess_queue.push_front(Message::Rejected());
-                    None
-                } else {
-                    self.board.move_piece(m);
-                    Some(State::Move)
-                }
+        if self.is_host {
+            self.handle_message_host(msg)
+        } else {
+            self.handle_message_client(msg)
+        }
+    }
+    fn handle_message_host(&mut self, msg: Message) -> Option<State> {
+        match (msg, &self.state) {
+            (Message::Moved(m), State::WaitMove) => {
+                self.send_mess_queue.push_front(Message::Accepted());
+                self.board.move_piece(m);
+                Some(State::Move)
             }
-            Message::Rejected() => {
+            (Message::Moved(_), _) => {
+                self.send_mess_queue.push_front(Message::Rejected());
+                None
+            }
+            (_, _) => None,
+        }
+    }
+    fn handle_message_client(&mut self, msg: Message) -> Option<State> {
+        match (msg, &self.state) {
+            (Message::Moved(m), State::WaitMove) => {
+                self.board.move_piece(m);
+                Some(State::Move)
+            }
+            (Message::Rejected(), _) => {
                 Some(State::WaitMove)
             }
-            Message::Accepted() => {
-                match self.state {
-                    State::WaitReply(m) => {
-                        self.board.move_piece(m);
-                        Some(State::WaitMove)
-                    }
-                    _ => None
-                }
+            (Message::Accepted(), State::WaitReply(m)) => {
+                self.board.move_piece(*m);
+                Some(State::WaitMove)
             }
+            _ => None,
         }
     }
 
