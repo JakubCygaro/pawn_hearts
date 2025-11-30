@@ -66,7 +66,7 @@ pub fn run_host(mut game: Game, addr: &str) {
             HostConnection::Connected(mut tcp, a, id, mut buf, cursor) => {
                 if let Some(msgs) = network::recv_messages(&mut tcp, &mut buf, &id).unwrap() {
                     for msg in msgs{
-                        game.recv_mess_queue.push_front(msg);
+                        game.recv_mess_queue.push_back(msg);
                     }
                 }
                 while let Some(mess) = game.send_mess_queue.pop_front() {
