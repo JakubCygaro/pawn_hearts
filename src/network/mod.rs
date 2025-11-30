@@ -13,32 +13,39 @@ pub type MessageQueue = VecDeque<Message>;
 pub mod client;
 pub mod host;
 
-pub fn recv_message(
+pub fn recv_messages(
     sock: &mut TcpStream,
     buf: &mut NetBuf,
     session_id: &SessId,
-) -> Result<Option<Message>> {
+) -> Result<Option<Vec<Message>>> {
+    let mut ret = vec![];
     match sock.read(buf) {
         Ok(n) => {
-            println!("recieved something");
-            if n < 5 {
-                return Ok(None);
-            };
-            if buf[..4] != *session_id {
-                return Ok(None);
+            println!("recieved something: {:?}\nn: {n}", buf);
+            let mut cursor = 0;
+            while cursor < n {
+                // would be too short for a valid message
+                if n - cursor < 5 {
+                    return Ok(None);
+                };
+                // ensure the session id matches
+                if buf[cursor..cursor + 4] != *session_id {
+                    return Ok(None);
+                }
+                cursor += 4;
+                while let Ok((msg, off)) = decode_message(&buf[cursor..]) {
+                    ret.push(msg);
+                    cursor += off;
+                }
             }
-            if let Ok(msg) = decode_message(&buf[4..n]) {
-                buf.fill(0);
-                Ok(Some(msg))
-            } else {
-                Ok(None)
-            }
+            buf.fill(0);
+            Ok(Some(ret))
         }
         Err(e) if e.kind() == ErrorKind::WouldBlock => Ok(None),
         Err(other) => Err(other.into()),
     }
 }
-pub fn send(sock: &mut TcpStream, msg: Message, session_id: &SessId) -> Result<Option<()>> {
+pub fn send_message(sock: &mut TcpStream, msg: Message, session_id: &SessId) -> Result<Option<()>> {
     let mut bytes = BytesMut::new();
     bytes.put(session_id.as_slice());
     let encoded_message = encode_message(&msg);
@@ -50,9 +57,12 @@ pub fn send(sock: &mut TcpStream, msg: Message, session_id: &SessId) -> Result<O
         Err(e) => Err(e.into()),
     }
 }
-fn decode_message(bytes: &[u8]) -> Result<Message> {
+/// # Return value
+/// None or a Message and cursor offset after decoding it
+fn decode_message(bytes: &[u8]) -> Result<(Message, usize)> {
+    const MOVED_SZ: usize = 7;
     match bytes[0] {
-        0x01 if bytes.len() == 7 => {
+        0x01 if bytes.len() >= MOVED_SZ => {
             let mess = Message::Moved(BoardMove::new(
                 BoardPos {
                     row: bytes[1] as usize,
@@ -63,13 +73,13 @@ fn decode_message(bytes: &[u8]) -> Result<Message> {
                     col: bytes[4] as usize,
                 },
             ));
-            Ok(mess)
+            Ok((mess, MOVED_SZ))
         }
-        0x02 if bytes.len() == 1 => {
-            Ok(Message::Rejected())
+        0x02 => {
+            Ok((Message::Rejected(), 1))
         }
-        0x03 if bytes.len() == 1 => {
-            Ok(Message::Accepted())
+        0x03 => {
+            Ok((Message::Accepted(), 1))
         }
         _ => Err(anyhow!("invalid message kind")),
     }

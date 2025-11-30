@@ -88,7 +88,11 @@ impl Game {
         self.state = match self.state {
             State::MovePending(m) => {
                 self.send_mess_queue.push_front(Message::Moved(m));
-                State::WaitReply(m)
+                if self.is_host {
+                    State::WaitMove
+                } else {
+                    State::WaitReply(m)
+                }
             }
             _ => self.state.clone(),
         };

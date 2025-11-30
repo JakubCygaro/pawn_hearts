@@ -47,11 +47,13 @@ pub fn run_client(mut game: Game, addr: &str) {
                 }
             }
             ClientConnection::Connected(mut tcp, a, id, mut buf, cursor) => {
-                if let Some(mess) = network::recv_message(&mut tcp, &mut buf, &id).unwrap() {
-                    game.recv_mess_queue.push_front(mess);
+                if let Some(msgs) = network::recv_messages(&mut tcp, &mut buf, &id).unwrap() {
+                    for msg in msgs{
+                        game.recv_mess_queue.push_front(msg);
+                    }
                 }
                 while let Some(mess) = game.send_mess_queue.pop_front() {
-                    network::send(&mut tcp, mess, &id).unwrap();
+                    network::send_message(&mut tcp, mess, &id).unwrap();
                 }
                 ClientConnection::Connected(tcp, a, id, buf, cursor)
             }
