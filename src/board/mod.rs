@@ -12,6 +12,12 @@ pub struct BoardMove {
     rows: isize,
     columns: isize,
 }
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BoardMoveResult {
+    pub pieces_deleted: Vec<ChessBoardCell>,
+    pub pieces_moved: Vec<(ChessBoardCell, BoardMove)>,
+    pub pieces_set: Vec<(ChessBoardCell, BoardPos)>,
+}
 
 impl BoardMove {
     pub fn new(from: BoardPos, to: BoardPos) -> Self {
@@ -110,6 +116,19 @@ pub enum ChessBoardCell {
 }
 
 impl ChessBoardCell {
+    /// extracts the piece from the cell
+    /// # Returns
+    /// `Some` if the cell contained a piece, otherwise `None`
+    pub fn take_piece(self) -> Option<ChessPiece> {
+        match self {
+            Self::White(piece) => Some(piece),
+            Self::Black(piece) => Some(piece),
+            _ => None
+        }
+    }
+}
+
+impl ChessBoardCell {
     pub fn get_texture_path(&self) -> Option<&'static str> {
         match self {
             ChessBoardCell::Black(p) => match p {
@@ -148,6 +167,15 @@ pub enum ChessPiece {
     Rook,
     Queen,
     King(bool),
+}
+
+impl ChessPiece {
+    pub fn is_king(&self) -> bool {
+        match *self {
+            Self::King(_) => true,
+            _ => false
+        }
+    }
 }
 
 pub struct BoardRenderData {
@@ -244,34 +272,39 @@ impl ChessBoard {
             Ok(())
         }
     }
-    /// returns a value indicating whether the move passed validation
+    /// returns Some when the move passed validation
     /// and thus was executed
-    pub fn move_piece(&mut self, m: BoardMove) -> bool {
+    pub fn move_piece(&mut self, m: BoardMove) -> Option<BoardMoveResult> {
         let ValidationResult::Valid(Some(side_effects)) = self.validate_move(m) else {
-            return false;
+            return None;
         };
-
+        let mut res = BoardMoveResult {
+            pieces_deleted: vec![],
+            pieces_moved: vec![],
+            pieces_set: vec![],
+        };
         for side_effect in side_effects.into_iter().rev() {
             match side_effect {
                 SideEffect::Delete(d) => {
-                    let deleted = self.take_from(d);
-                    println!("Deleted: {:?}", deleted);
+                    if let Some(deleted) = self.take_from(d) {
+                        println!("Deleted: {:?}", deleted);
+                        res.pieces_deleted.push(deleted)
+                    }
                 }
                 SideEffect::Move(m) => {
                     let piece = self.take_from(m.from).unwrap();
                     self.place_at(m.to, piece).unwrap();
+                    res.pieces_moved.push((piece, m));
                     println!("Moved {:?} from {:?} to {:?}", piece, m.from, m.to);
                 }
                 SideEffect::SetAt(p, piece) => {
                     self.place_at(p, piece).unwrap();
+                    res.pieces_set.push((piece, p));
                     println!("Set {:?} at {:?}", piece, p)
                 }
             }
         }
-        true
-        // let Some(target) = self.validate_move(m) else {
-        //     return;
-        // };
+        Some(res)
     }
 
     fn validate_move(&self, m: BoardMove) -> ValidationResult {

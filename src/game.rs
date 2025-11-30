@@ -1,3 +1,4 @@
+use crate::board::{ChessBoardCell, ChessPiece};
 use crate::network::MessageQueue;
 
 use super::board::{self, BoardPos, MoveBuilder};
@@ -10,6 +11,7 @@ use raylib::{
     prelude::{self as ray, color::Color, RaylibDraw},
     RaylibHandle, RaylibThread,
 };
+use std::ops::Not;
 use std::{path::PathBuf, str::FromStr};
 
 use super::{board::BoardMove, network::Message};
@@ -44,6 +46,8 @@ enum State {
     MovePending(BoardMove),
     WaitReply(BoardMove),
     WaitMove,
+    Won,
+    Lost,
 }
 impl Game {
     pub fn init(width: i32, height: i32, is_host: bool) -> Self {
@@ -85,6 +89,11 @@ impl Game {
         if self.window_handle.is_window_resized() {
             self.resize();
         }
+        while let Some(msg) = self.recv_mess_queue.pop_front() {
+            if let Some(new_state) = self.handle_message(msg) {
+                self.state = new_state;
+            }
+        }
         self.state = match self.state {
             State::MovePending(m) => {
                 self.send_mess_queue.push_back(Message::Moved(m));
@@ -96,11 +105,6 @@ impl Game {
             }
             _ => self.state.clone(),
         };
-        while let Some(msg) = self.recv_mess_queue.pop_front() {
-            if let Some(new_state) = self.handle_message(msg) {
-                self.state = new_state;
-            }
-        }
         self.update_mouse();
     }
     fn handle_message(&mut self, msg: Message) -> Option<State> {
@@ -114,12 +118,12 @@ impl Game {
     fn handle_message_host(&mut self, msg: Message) -> Option<State> {
         match (msg, &self.state) {
             (Message::Moved(m), State::WaitMove) => {
-                self.send_mess_queue.push_front(Message::Accepted());
+                self.send_mess_queue.push_back(Message::Accepted());
                 self.board.move_piece(m);
                 Some(State::Move)
             }
             (Message::Moved(_), _) => {
-                self.send_mess_queue.push_front(Message::Rejected());
+                self.send_mess_queue.push_back(Message::Rejected());
                 None
             }
             (_, _) => None,
@@ -282,18 +286,19 @@ impl Game {
                 board::ChessBoardCell::Empty => {
                     self.selected_piece = None;
                 }
-                board::ChessBoardCell::White(_) => {
+                board::ChessBoardCell::White(_) if self.is_host => {
                     self.selected_piece = Some(Selection {
                         piece: self.board.take_from(pos).unwrap(),
                         taken_from: pos,
                     });
                 }
-                board::ChessBoardCell::Black(_) => {
+                board::ChessBoardCell::Black(_) if self.is_host.not() => {
                     self.selected_piece = Some(Selection {
                         piece: self.board.take_from(pos).unwrap(),
                         taken_from: pos,
                     });
                 }
+                _ => self.selected_piece = None
             }
         }
     }
@@ -304,12 +309,18 @@ impl Game {
             self.board
                 .place_at(selection.taken_from, selection.piece)
                 .unwrap();
-            if self.board.move_piece(m) {
+            if let Some(result) = self.board.move_piece(m) {
                 println!("move pending!");
+                match is_lost_or_won(self.is_host, &result.pieces_deleted) {
+                    EndCheck::Victory => {
+
+                    }
+                }
                 self.state = State::MovePending(m);
             }
         }
     }
+
 
     fn resize(&mut self) {
         self.width = self.window_handle.get_screen_width();
@@ -354,4 +365,21 @@ impl Game {
             height: size,
         };
     }
+}
+
+enum EndCheck {
+    Loss,
+    Victory
+}
+fn is_lost_or_won(is_host: bool, deleted: &Vec<ChessBoardCell>) -> Option<EndCheck> {
+    for cell in deleted {
+        match *cell {
+            ChessBoardCell::Black(ChessPiece::King(_)) if is_host => return Some(EndCheck::Victory),
+            ChessBoardCell::White(ChessPiece::King(_)) if is_host => return Some(EndCheck::Loss),
+            ChessBoardCell::Black(ChessPiece::King(_)) => return Some(EndCheck::Loss),
+            ChessBoardCell::White(ChessPiece::King(_)) => return Some(EndCheck::Victory),
+            _ => continue
+        };
+    }
+    None
 }
