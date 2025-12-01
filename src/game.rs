@@ -41,7 +41,7 @@ pub struct Game {
     pub send_mess_queue: network::MessageQueue,
     state: State,
 }
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 enum State {
     Move,
     MovePending(BoardMove),
@@ -116,6 +116,7 @@ impl Game {
             _ => self.state.clone(),
         };
         self.update_mouse();
+        println!("{} state is: {:?}", if self.is_host { "Host" } else { "Client" }, self.state);
     }
     fn handle_message(&mut self, msg: Message) -> Option<State> {
         println!("handle message: {:?}", msg);
@@ -130,21 +131,8 @@ impl Game {
             (Message::Moved(m), State::WaitMove) => {
                 self.send_mess_queue.push_back(Message::Accepted());
                 self.statefull_move_piece(m)
-                // if let Some(res) = self.board.move_piece(m) {
-                //     match is_lost_or_won(self.is_host, &res.pieces_deleted) {
-                //         Some(EndCheck::Victory) => {
-                //             self.send_mess_queue.push_back(Message::GameDone());
-                //             Some(State::Won)
-                //         }
-                //         Some(EndCheck::Loss) => {
-                //             self.send_mess_queue.push_back(Message::GameDone());
-                //             Some(State::Lost)
-                //         }
-                //         _ => Some(State::Move)
-                //     }
-                // } else {
-                //     None
-                // }
+                    .inspect(|_| self.send_mess_queue.push_back(Message::GameDone()))
+                    .or(Some(State::Move))
             }
             (Message::Moved(_), _) => {
                 self.send_mess_queue.push_back(Message::Rejected());
@@ -157,14 +145,19 @@ impl Game {
         match (msg, &self.state) {
             (Message::Moved(m), State::WaitMove) => {
                 // self.board.move_piece(m);
-                self.statefull_move_piece(m)
+                // self.send_mess_queue.push_back(Message::GameDone());
                 // Some(State::Move)
+                self.statefull_move_piece(m)
+                    .inspect(|_| self.send_mess_queue.push_back(Message::GameDone()))
+                    .or(Some(State::Move))
             }
             (Message::Rejected(), _) => Some(State::WaitMove),
             (Message::Accepted(), State::WaitReply(m)) => {
                 // self.board.move_piece(*m);
                 // Some(State::WaitMove)
                 self.statefull_move_piece(*m)
+                    .inspect(|_| self.send_mess_queue.push_back(Message::GameDone()))
+                    .or(Some(State::WaitMove))
             }
             _ => None,
         }
@@ -360,7 +353,7 @@ impl Game {
                         self.send_mess_queue.push_back(Message::GameDone());
                         self.state = State::Lost
                     }
-                    _ => {}
+                    _ => { self.state = State::WaitMove }
                 }
             }
         }
@@ -411,24 +404,16 @@ impl Game {
     }
     pub fn on_network_event(&mut self, ev: NetworkEvent) {}
 
+    /// Takes into consideration wether the move casuses a loss or victory
+    /// # Returns
+    /// `Some(State::Won | State::Lost)` if the move caused a game ending condition, otherwise
+    /// returns None
     fn statefull_move_piece(&mut self, m: BoardMove) -> Option<State> {
         if let Some(res) = self.board.move_piece(m) {
             match is_lost_or_won(self.is_host, &res.pieces_deleted) {
-                Some(EndCheck::Victory) => {
-                    self.send_mess_queue.push_back(Message::GameDone());
-                    Some(State::Won)
-                }
-                Some(EndCheck::Loss) => {
-                    self.send_mess_queue.push_back(Message::GameDone());
-                    Some(State::Lost)
-                }
-                _ => {
-                    if self.is_host {
-                        Some(State::Move)
-                    } else {
-                        Some(State::WaitMove)
-                    }
-                }
+                Some(EndCheck::Victory) => Some(State::Won),
+                Some(EndCheck::Loss) => Some(State::Lost),
+                _ => None,
             }
         } else {
             None
