@@ -27,6 +27,7 @@ pub struct Selection {
 
 pub struct Game {
     board: board::ChessBoard,
+    scratch_board: Option<board::ChessBoard>,
     pub window_handle: RaylibHandle,
     pub window_thread: RaylibThread,
     width: i32,
@@ -49,6 +50,14 @@ enum State {
     Won,
     Lost,
 }
+
+pub enum NetworkEvent {
+    NotConnected,
+    Connecting,
+    Connected,
+    Broken,
+}
+
 impl Game {
     pub fn init(width: i32, height: i32, is_host: bool) -> Self {
         let (mut window_handle, mut window_thread) = ray::init()
@@ -67,6 +76,7 @@ impl Game {
 
         Self {
             board: board::ChessBoard::new_full(),
+            scratch_board: None,
             window_handle,
             window_thread,
             width,
@@ -119,12 +129,26 @@ impl Game {
         match (msg, &self.state) {
             (Message::Moved(m), State::WaitMove) => {
                 self.send_mess_queue.push_back(Message::Accepted());
-                self.board.move_piece(m);
-                Some(State::Move)
+                self.statefull_move_piece(m)
+                // if let Some(res) = self.board.move_piece(m) {
+                //     match is_lost_or_won(self.is_host, &res.pieces_deleted) {
+                //         Some(EndCheck::Victory) => {
+                //             self.send_mess_queue.push_back(Message::GameDone());
+                //             Some(State::Won)
+                //         }
+                //         Some(EndCheck::Loss) => {
+                //             self.send_mess_queue.push_back(Message::GameDone());
+                //             Some(State::Lost)
+                //         }
+                //         _ => Some(State::Move)
+                //     }
+                // } else {
+                //     None
+                // }
             }
             (Message::Moved(_), _) => {
                 self.send_mess_queue.push_back(Message::Rejected());
-                None
+                Some(State::Move)
             }
             (_, _) => None,
         }
@@ -132,15 +156,15 @@ impl Game {
     fn handle_message_client(&mut self, msg: Message) -> Option<State> {
         match (msg, &self.state) {
             (Message::Moved(m), State::WaitMove) => {
-                self.board.move_piece(m);
-                Some(State::Move)
+                // self.board.move_piece(m);
+                self.statefull_move_piece(m)
+                // Some(State::Move)
             }
-            (Message::Rejected(), _) => {
-                Some(State::WaitMove)
-            }
+            (Message::Rejected(), _) => Some(State::WaitMove),
             (Message::Accepted(), State::WaitReply(m)) => {
-                self.board.move_piece(*m);
-                Some(State::WaitMove)
+                // self.board.move_piece(*m);
+                // Some(State::WaitMove)
+                self.statefull_move_piece(*m)
             }
             _ => None,
         }
@@ -298,7 +322,7 @@ impl Game {
                         taken_from: pos,
                     });
                 }
-                _ => self.selected_piece = None
+                _ => self.selected_piece = None,
             }
         }
     }
@@ -306,21 +330,41 @@ impl Game {
         if let Some(s) = &self.selected_piece {
             let m = MoveBuilder::new().from(s.taken_from).to(pos).build();
             let selection = self.selected_piece.take().unwrap();
+            // put it back for now
             self.board
                 .place_at(selection.taken_from, selection.piece)
                 .unwrap();
-            if let Some(result) = self.board.move_piece(m) {
-                println!("move pending!");
-                match is_lost_or_won(self.is_host, &result.pieces_deleted) {
-                    EndCheck::Victory => {
 
-                    }
+            if !self.is_host {
+                // clone the board so that any changes occur only for the copy and dont modify the
+                // state of the real board (host does not care and performs their moves on the true
+                // board anyways)
+                if self.scratch_board.is_none() && !self.is_host {
+                    self.scratch_board = self.board.clone().into();
                 }
-                self.state = State::MovePending(m);
+                let scratch: &mut board::ChessBoard = self.scratch_board.as_mut().unwrap();
+                if scratch.move_piece(m).is_some() {
+                    println!("move pending!");
+                    self.state = State::MovePending(m);
+                } else {
+                    self.scratch_board = None;
+                }
+            } else if let Some(result) = self.board.move_piece(m) {
+                self.send_mess_queue.push_back(Message::Moved(m));
+                match is_lost_or_won(self.is_host, &result.pieces_deleted) {
+                    Some(EndCheck::Victory) => {
+                        self.send_mess_queue.push_back(Message::GameDone());
+                        self.state = State::Won
+                    }
+                    Some(EndCheck::Loss) => {
+                        self.send_mess_queue.push_back(Message::GameDone());
+                        self.state = State::Lost
+                    }
+                    _ => {}
+                }
             }
         }
     }
-
 
     fn resize(&mut self) {
         self.width = self.window_handle.get_screen_width();
@@ -365,20 +409,47 @@ impl Game {
             height: size,
         };
     }
+    pub fn on_network_event(&mut self, ev: NetworkEvent) {}
+
+    fn statefull_move_piece(&mut self, m: BoardMove) -> Option<State> {
+        if let Some(res) = self.board.move_piece(m) {
+            match is_lost_or_won(self.is_host, &res.pieces_deleted) {
+                Some(EndCheck::Victory) => {
+                    self.send_mess_queue.push_back(Message::GameDone());
+                    Some(State::Won)
+                }
+                Some(EndCheck::Loss) => {
+                    self.send_mess_queue.push_back(Message::GameDone());
+                    Some(State::Lost)
+                }
+                _ => {
+                    if self.is_host {
+                        Some(State::Move)
+                    } else {
+                        Some(State::WaitMove)
+                    }
+                }
+            }
+        } else {
+            None
+        }
+    }
 }
 
 enum EndCheck {
     Loss,
-    Victory
+    Victory,
 }
 fn is_lost_or_won(is_host: bool, deleted: &Vec<ChessBoardCell>) -> Option<EndCheck> {
     for cell in deleted {
         match *cell {
-            ChessBoardCell::Black(ChessPiece::King(_)) if is_host => return Some(EndCheck::Victory),
+            ChessBoardCell::Black(ChessPiece::King(_)) if is_host => {
+                return Some(EndCheck::Victory)
+            }
             ChessBoardCell::White(ChessPiece::King(_)) if is_host => return Some(EndCheck::Loss),
             ChessBoardCell::Black(ChessPiece::King(_)) => return Some(EndCheck::Loss),
             ChessBoardCell::White(ChessPiece::King(_)) => return Some(EndCheck::Victory),
-            _ => continue
+            _ => continue,
         };
     }
     None

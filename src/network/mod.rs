@@ -89,6 +89,7 @@ pub enum Message {
     Moved(super::board::BoardMove), // 0x01
     Rejected(), // 0x02
     Accepted(), // 0x03
+    GameDone(), // 0x04
 }
 fn encode_message(msg: &Message) -> Bytes {
     let mut bytes = BytesMut::new();
@@ -102,6 +103,9 @@ fn encode_message(msg: &Message) -> Bytes {
         }
         Message::Accepted() => {
             bytes.put_u8(0x03);
+        }
+        Message::GameDone() => {
+            bytes.put_u8(0x04);
         }
     }
     bytes.into()

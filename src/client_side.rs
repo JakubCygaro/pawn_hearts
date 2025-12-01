@@ -1,8 +1,9 @@
 use std::io::{ErrorKind, Read, Write};
 
 use super::game::Game;
+use crate::game::NetworkEvent;
 use crate::network::client::ClientConnection;
-use crate::network::{self, NETBUF_SIZE, SessId};
+use crate::network::{self, SessId, NETBUF_SIZE};
 type Conn = ClientConnection;
 
 pub fn run_client(mut game: Game, addr: &str) {
@@ -10,6 +11,7 @@ pub fn run_client(mut game: Game, addr: &str) {
     println!("client connecting...");
 
     game.update_board_data();
+    game.on_network_event(NetworkEvent::NotConnected);
     while !game.window_handle.window_should_close() {
         client = match client {
             ClientConnection::Begin(mut tcp, addr, buf) => {
@@ -21,7 +23,10 @@ pub fn run_client(mut game: Game, addr: &str) {
                             panic!("{e}");
                         }
                     }
-                    Ok(_) => ClientConnection::SessionIdRead(tcp, addr, buf),
+                    Ok(_) => {
+                        game.on_network_event(NetworkEvent::Connecting);
+                        ClientConnection::SessionIdRead(tcp, addr, buf)
+                    }
                 }
             }
             ClientConnection::SessionIdRead(mut tcp, addr, mut buf) => {
@@ -42,13 +47,14 @@ pub fn run_client(mut game: Game, addr: &str) {
                         }
                         let id: SessId = buf[4..8].try_into().unwrap();
                         println!("session_id: {:?}", id);
+                        game.on_network_event(NetworkEvent::Connected);
                         ClientConnection::Connected(tcp, addr, id, [0; NETBUF_SIZE], 0)
                     }
                 }
             }
             ClientConnection::Connected(mut tcp, a, id, mut buf, cursor) => {
                 if let Some(msgs) = network::recv_messages(&mut tcp, &mut buf, &id).unwrap() {
-                    for msg in msgs{
+                    for msg in msgs {
                         game.recv_mess_queue.push_back(msg);
                     }
                 }

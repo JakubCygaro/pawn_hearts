@@ -1,5 +1,6 @@
 use std::io::{ErrorKind, Read, Write};
 
+use crate::game::NetworkEvent;
 use crate::network::host::HostConnection;
 use crate::network::{self, MAGIC_N};
 
@@ -7,8 +8,8 @@ use super::game::Game;
 pub fn run_host(mut game: Game, addr: &str) {
     let mut host = network::host::HostConnection::new(addr).unwrap();
     println!("host connecting...");
-
     game.update_board_data();
+    game.on_network_event(NetworkEvent::NotConnected);
     while !game.window_handle.window_should_close() {
         host = match host {
             HostConnection::Begin(ref list, id, buf) => match list.accept() {
@@ -21,6 +22,7 @@ pub fn run_host(mut game: Game, addr: &str) {
                 }
                 Ok((recv, peer)) => {
                     recv.set_nonblocking(true).unwrap();
+                    game.on_network_event(NetworkEvent::Connecting);
                     HostConnection::HandshakeRead(recv, peer, id, buf)
                 }
             },
@@ -60,12 +62,15 @@ pub fn run_host(mut game: Game, addr: &str) {
                             panic!("{e}")
                         }
                     }
-                    Ok(_) => HostConnection::Connected(tcp, addr, id, [0; 128], 0),
+                    Ok(_) => {
+                        game.on_network_event(NetworkEvent::Connected);
+                        HostConnection::Connected(tcp, addr, id, [0; 128], 0)
+                    }
                 }
             }
             HostConnection::Connected(mut tcp, a, id, mut buf, cursor) => {
                 if let Some(msgs) = network::recv_messages(&mut tcp, &mut buf, &id).unwrap() {
-                    for msg in msgs{
+                    for msg in msgs {
                         game.recv_mess_queue.push_back(msg);
                     }
                 }

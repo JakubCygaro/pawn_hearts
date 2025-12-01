@@ -237,7 +237,7 @@ macro_rules! p {
     };
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ChessBoard {
     cells: Vec<ChessBoardCell>,
 }
