@@ -5,13 +5,21 @@ use std::collections::VecDeque;
 use std::io::{ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream, UdpSocket};
 
+pub mod client;
+pub mod host;
+
 pub type SessId = [u8; 4];
 pub type NetBuf = [u8; NETBUF_SIZE];
 pub const MAGIC_N: [u8; 4] = [0xDE, 0xAD, 0xBE, 0xEF];
 pub const NETBUF_SIZE: usize = 128;
 pub type MessageQueue = VecDeque<Message>;
-pub mod client;
-pub mod host;
+
+pub trait Connection {
+    // fn state(&self);
+    fn poll(&mut self) -> Result<()>;
+    fn send(&mut self, msg: Message);
+    fn recv(&mut self) -> Option<Message>;
+}
 
 pub fn recv_messages(
     sock: &mut TcpStream,
@@ -34,10 +42,19 @@ pub fn recv_messages(
                 }
                 cursor += 4;
                 while let Ok((msg, off)) = decode_message(&buf[cursor..]) {
+                    println!("decoded message: {:?}", msg);
                     ret.push(msg);
                     cursor += off;
                 }
             }
+            // if cursor < n - 1 {
+            //     let mut i = 0;
+            //     while cursor < n - 1 {
+            //         buf[i] = buf[cursor];
+            //         i += 1;
+            //         cursor += 1;
+            //     }
+            // }
             buf.fill(0);
             Ok(Some(ret))
         }

@@ -1,5 +1,7 @@
 use crate::board::{ChessBoardCell, ChessPiece};
-use crate::network::MessageQueue;
+use crate::network::client::Client;
+use crate::network::host::Host;
+use crate::network::{Connection, MessageQueue};
 
 use super::board::{self, BoardPos, MoveBuilder};
 use super::helpers;
@@ -24,6 +26,11 @@ pub struct Selection {
     piece: board::ChessBoardCell,
     taken_from: board::BoardPos,
 }
+#[derive(Debug)]
+pub struct RunArgs {
+    pub address: String,
+    pub is_host: bool
+}
 
 pub struct Game {
     board: board::ChessBoard,
@@ -37,8 +44,8 @@ pub struct Game {
     selected_piece: Option<Selection>,
     reversed: bool,
     is_host: bool,
-    pub recv_mess_queue: network::MessageQueue,
-    pub send_mess_queue: network::MessageQueue,
+    conn: Option<Box<dyn Connection>>,
+    send_queue: MessageQueue,
     state: State,
 }
 #[derive(PartialEq, Clone, Debug)]
@@ -59,7 +66,7 @@ pub enum NetworkEvent {
 }
 
 impl Game {
-    pub fn init(width: i32, height: i32, is_host: bool) -> Self {
+    pub fn init(width: i32, height: i32, run_args: Option<RunArgs>) -> Self {
         let (mut window_handle, mut window_thread) = ray::init()
             .width(width)
             .height(height)
@@ -74,6 +81,14 @@ impl Game {
             .load_all_root(&mut window_handle, &mut window_thread)
             .expect("could not load all textures");
 
+        let run_args = run_args.unwrap();
+
+        let conn: Box<dyn Connection> = if run_args.is_host {
+            Box::new(Host::new(&run_args.address).unwrap())
+        } else {
+            Box::new(Client::new(&run_args.address).unwrap())
+        };
+
         Self {
             board: board::ChessBoard::new_full(),
             scratch_board: None,
@@ -84,34 +99,47 @@ impl Game {
             loader: Box::new(loader),
             board_data: board::BoardRenderData::default(),
             selected_piece: None,
-            reversed: !is_host,
-            is_host,
-            recv_mess_queue: MessageQueue::new(),
-            send_mess_queue: MessageQueue::new(),
-            state: if is_host {
+            reversed: !run_args.is_host,
+            is_host: run_args.is_host,
+            conn: Some(conn),
+            state: if run_args.is_host {
                 State::Move
             } else {
                 State::WaitMove
             },
+            send_queue: MessageQueue::new(),
         }
     }
     pub fn update(&mut self) {
         if self.window_handle.is_window_resized() {
             self.resize();
         }
-        while let Some(msg) = self.recv_mess_queue.pop_front() {
-            println!("recieved message: {:?}", msg);
-            if let Some(new_state) = self.handle_message(msg) {
+        let mut msgs: Vec<Message> = vec![];
+        if self.conn.is_some(){
+            let conn = self.conn.as_mut().unwrap();
+            conn.poll().unwrap();
+            while let Some(msg) = conn.recv() {
+                println!("recieved message: {:?}", msg);
+                msgs.push(msg)
+            }
+        }
+        for m in msgs {
+            if let Some(new_state) = self.handle_message(m) {
                 self.state = new_state;
             }
         }
+
         self.state = match self.state {
             State::MovePending(m) => {
-                self.send_mess_queue.push_back(Message::Moved(m));
-                if self.is_host {
-                    State::WaitMove
+                if self.conn.is_some() {
+                    self.send_queue.push_back(Message::Moved(m));
+                    if self.is_host {
+                        State::WaitMove
+                    } else {
+                        State::WaitReply(m)
+                    }
                 } else {
-                    State::WaitReply(m)
+                    self.state.clone()
                 }
             }
             State::Won | State::Lost => {
@@ -121,11 +149,17 @@ impl Game {
             _ => self.state.clone(),
         };
         self.update_mouse();
-        // println!(
-        //     "{} state is: {:?}",
-        //     if self.is_host { "Host" } else { "Client" },
-        //     self.state
-        // );
+
+        let mut msgs = vec![];
+        while let Some(m) = self.send_queue.pop_front(){
+            msgs.push(m)
+        }
+        if self.conn.is_some(){
+            let conn = self.conn.as_mut().unwrap();
+            for m in msgs {
+                conn.send(m);
+            }
+        }
     }
     fn handle_message(&mut self, msg: Message) -> Option<State> {
         println!("handle message: {:?}", msg);
@@ -138,13 +172,13 @@ impl Game {
     fn handle_message_host(&mut self, msg: Message) -> Option<State> {
         match (msg, &self.state) {
             (Message::Moved(m), State::WaitMove) => {
-                self.send_mess_queue.push_back(Message::Accepted());
+                self.send_queue.push_back(Message::Accepted());
                 self.statefull_move_piece(m)
-                    .inspect(|_| self.send_mess_queue.push_back(Message::GameDone()))
+                    .inspect(|_| self.send_queue.push_back(Message::GameDone()))
                     .or(Some(State::Move))
             }
             (Message::Moved(_), _) => {
-                self.send_mess_queue.push_back(Message::Rejected());
+                self.send_queue.push_back(Message::Rejected());
                 Some(State::Move)
             }
             (_, _) => None,
@@ -157,7 +191,7 @@ impl Game {
                 // self.send_mess_queue.push_back(Message::GameDone());
                 // Some(State::Move)
                 self.statefull_move_piece(m)
-                    .inspect(|_| self.send_mess_queue.push_back(Message::GameDone()))
+                    .inspect(|_| self.send_queue.push_back(Message::GameDone()))
                     .or(Some(State::Move))
             }
             (Message::Rejected(), _) => Some(State::WaitMove),
@@ -165,7 +199,7 @@ impl Game {
                 // self.board.move_piece(*m);
                 // Some(State::WaitMove)
                 self.statefull_move_piece(*m)
-                    .inspect(|_| self.send_mess_queue.push_back(Message::GameDone()))
+                    .inspect(|_| self.send_queue.push_back(Message::GameDone()))
                     .or(Some(State::WaitMove))
             }
             (Message::GameDone(), State::WaitReply(m)) => {
@@ -360,14 +394,14 @@ impl Game {
                     self.scratch_board = None;
                 }
             } else if let Some(result) = self.board.move_piece(m) {
-                self.send_mess_queue.push_back(Message::Moved(m));
+                self.send_queue.push_back(Message::Moved(m));
                 match is_lost_or_won(self.is_host, &result.pieces_deleted) {
                     Some(EndCheck::Victory) => {
-                        self.send_mess_queue.push_back(Message::GameDone());
+                        self.send_queue.push_back(Message::GameDone());
                         self.state = State::Won
                     }
                     Some(EndCheck::Loss) => {
-                        self.send_mess_queue.push_back(Message::GameDone());
+                        self.send_queue.push_back(Message::GameDone());
                         self.state = State::Lost
                     }
                     _ => self.state = State::WaitMove,

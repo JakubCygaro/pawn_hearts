@@ -1,10 +1,12 @@
+use std::process::exit;
+
+use self::game::{Game, RunArgs};
+
 pub mod board;
 pub mod data;
 pub mod helpers;
 pub mod network;
 pub mod resources;
-pub mod host_side;
-pub mod client_side;
 pub mod game;
 
 
@@ -13,12 +15,25 @@ const HEIGHT: i32 = 800;
 
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
-    let adress = args[1].clone();
-    let host = args[2].parse::<bool>().unwrap();
-    if host {
-        host_side::run_host(game::Game::init(WIDTH, HEIGHT, host), &adress)
+    let args = if !args.is_empty(){
+        if args.len() != 3 {
+            eprintln!("improper argument count");
+            exit(-1)
+        }
+        let address = args[1].clone();
+        let is_host = args[2].parse::<bool>().unwrap();
+        Some(RunArgs{
+            address,
+            is_host
+        })
     } else {
-        client_side::run_client(game::Game::init(WIDTH, HEIGHT, host), &adress)
+        None
+    };
+    let mut game = Game::init(WIDTH, HEIGHT, args);
+    game.update_board_data();
+    while !game.window_handle.window_should_close() {
+        game.update();
+        game.draw();
     }
 }
 
