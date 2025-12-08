@@ -123,7 +123,7 @@ impl ChessBoardCell {
         match self {
             Self::White(piece) => Some(piece),
             Self::Black(piece) => Some(piece),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -173,7 +173,7 @@ impl ChessPiece {
     pub fn is_king(&self) -> bool {
         match *self {
             Self::King(_) => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -285,10 +285,10 @@ impl ChessBoard {
         };
         for side_effect in side_effects.into_iter().rev() {
             match side_effect {
-                SideEffect::Delete(d) => {
-                    if let Some(deleted) = self.take_from(d) {
+                SideEffect::Delete(p, c) => {
+                    res.pieces_deleted.push(c);
+                    if let Some(deleted) = self.take_from(p) {
                         println!("Deleted: {:?}", deleted);
-                        res.pieces_deleted.push(deleted)
                     }
                 }
                 SideEffect::Move(m) => {
@@ -321,30 +321,48 @@ impl ChessBoard {
 
         if let Some(at_cell) = self.at(m.to) {
             //check if the target piece is not of the same colour as the from piece
-            if match (from_cell, at_cell) {
-                (_, ChessBoardCell::Empty) => false,
-                (ChessBoardCell::Black(_), ChessBoardCell::White(_))
-                | (ChessBoardCell::White(_), ChessBoardCell::Black(_)) => false,
-                _ => true,
-            } {
-                return ValidationResult::NotValid;
-            }
-            return if move_validation::MOVEMAP.contains_key(from_cell) {
+            if !matches!(
+                (from_cell, at_cell),
+                (_, ChessBoardCell::Empty)
+                    | (ChessBoardCell::Black(_), ChessBoardCell::White(_))
+                    | (ChessBoardCell::White(_), ChessBoardCell::Black(_))
+            ) {
+                ValidationResult::NotValid
+            } else if move_validation::MOVEMAP.contains_key(from_cell) {
                 println!("moving: {:?}", from_cell);
-                let res = move_validation::MOVEMAP[from_cell](m, &self); //.then(|| m.to)
-                return match res {
-                    ValidationResult::Valid(Some(mut se)) => {
-                        se.push(SideEffect::Move(m));
-                        ValidationResult::Valid(Some(se))
+                let res = move_validation::MOVEMAP[from_cell](m, self);
+                match res {
+                    ValidationResult::Valid(se) => {
+                        let se = se
+                            .map(|mut s| {
+                                s.push(SideEffect::Move(m));
+                                s
+                            })
+                            .or(Some(vec![SideEffect::Move(m)]))
+                            .map(|mut s| {
+                                if !matches!(at_cell, ChessBoardCell::Empty) {
+                                    s.push(SideEffect::Delete(m.to, *at_cell))
+                                }
+                                s
+                            });
+                        ValidationResult::Valid(se)
                     }
-                    ValidationResult::Valid(None) => {
-                        ValidationResult::Valid(Some(vec![SideEffect::Move(m)]))
-                    }
+                    // ValidationResult::Valid(Some(mut se)) => {
+                    //
+                    //
+                    //
+                    //     se.push(SideEffect::Move(m));
+                    //     ValidationResult::Valid(Some(se))
+                    // }
+                    // ValidationResult::Valid(None) => {
+                    //     let se = vec![SideEffect::Move(m)];
+                    //     ValidationResult::Valid(Some(se))
+                    // }
                     ValidationResult::NotValid => ValidationResult::NotValid,
-                };
+                }
             } else {
                 ValidationResult::NotValid
-            };
+            }
         } else {
             ValidationResult::NotValid
         }

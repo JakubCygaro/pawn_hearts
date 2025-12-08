@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 
 pub enum SideEffect {
-    Delete(BoardPos),
+    Delete(BoardPos, ChessBoardCell),
     Move(BoardMove),
     SetAt(BoardPos, ChessBoardCell),
 }
@@ -89,20 +89,34 @@ fn black_pawn(mv: BoardMove, b: &ChessBoard) -> ValidationResult {
                     col: mv.from.col - 1,
                 })
             {
-                ValidationResult::Valid(Some(vec![SideEffect::Delete(BoardPos {
-                    row: mv.from.row,
-                    col: mv.from.col - 1,
-                })]))
+                ValidationResult::Valid(Some(vec![SideEffect::Delete(
+                    BoardPos {
+                        row: mv.from.row,
+                        col: mv.from.col - 1,
+                    },
+                    *b.at(BoardPos {
+                        row: mv.from.row,
+                        col: mv.from.col - 1,
+                    })
+                    .unwrap(),
+                )]))
             } else if let Some(&ChessBoardCell::White(ChessPiece::Pawn(LongStart::RightNow))) = b
                 .at(BoardPos {
                     row: mv.from.row,
                     col: mv.from.col + 1,
                 })
             {
-                ValidationResult::Valid(Some(vec![SideEffect::Delete(BoardPos {
-                    row: mv.from.row,
-                    col: mv.from.col + 1,
-                })]))
+                ValidationResult::Valid(Some(vec![SideEffect::Delete(
+                    BoardPos {
+                        row: mv.from.row,
+                        col: mv.from.col + 1,
+                    },
+                    *b.at(BoardPos {
+                        row: mv.from.row,
+                        col: mv.from.col + 1,
+                    })
+                    .unwrap(),
+                )]))
             } else {
                 ValidationResult::NotValid
             }
@@ -154,20 +168,34 @@ fn white_pawn(mv: BoardMove, b: &ChessBoard) -> ValidationResult {
                     col: mv.from.col - 1,
                 })
             {
-                ValidationResult::Valid(Some(vec![SideEffect::Delete(BoardPos {
-                    row: mv.from.row,
-                    col: mv.from.col - 1,
-                })]))
+                ValidationResult::Valid(Some(vec![SideEffect::Delete(
+                    BoardPos {
+                        row: mv.from.row,
+                        col: mv.from.col - 1,
+                    },
+                    *b.at(BoardPos {
+                        row: mv.from.row,
+                        col: mv.from.col - 1,
+                    })
+                    .unwrap(),
+                )]))
             } else if let Some(&ChessBoardCell::Black(ChessPiece::Pawn(LongStart::RightNow))) = b
                 .at(BoardPos {
                     row: mv.from.row,
                     col: mv.from.col + 1,
                 })
             {
-                ValidationResult::Valid(Some(vec![SideEffect::Delete(BoardPos {
-                    row: mv.from.row,
-                    col: mv.from.col + 1,
-                })]))
+                ValidationResult::Valid(Some(vec![SideEffect::Delete(
+                    BoardPos {
+                        row: mv.from.row,
+                        col: mv.from.col + 1,
+                    },
+                    *b.at(BoardPos {
+                        row: mv.from.row,
+                        col: mv.from.col + 1,
+                    })
+                    .unwrap(),
+                )]))
             } else {
                 ValidationResult::NotValid
             }

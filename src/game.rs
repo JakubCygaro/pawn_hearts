@@ -100,6 +100,7 @@ impl Game {
             self.resize();
         }
         while let Some(msg) = self.recv_mess_queue.pop_front() {
+            println!("recieved message: {:?}", msg);
             if let Some(new_state) = self.handle_message(msg) {
                 self.state = new_state;
             }
@@ -113,10 +114,18 @@ impl Game {
                     State::WaitReply(m)
                 }
             }
+            State::Won | State::Lost => {
+                println!("Game Finished");
+                self.state.clone()
+            }
             _ => self.state.clone(),
         };
         self.update_mouse();
-        println!("{} state is: {:?}", if self.is_host { "Host" } else { "Client" }, self.state);
+        // println!(
+        //     "{} state is: {:?}",
+        //     if self.is_host { "Host" } else { "Client" },
+        //     self.state
+        // );
     }
     fn handle_message(&mut self, msg: Message) -> Option<State> {
         println!("handle message: {:?}", msg);
@@ -158,6 +167,14 @@ impl Game {
                 self.statefull_move_piece(*m)
                     .inspect(|_| self.send_mess_queue.push_back(Message::GameDone()))
                     .or(Some(State::WaitMove))
+            }
+            (Message::GameDone(), State::WaitReply(m)) => {
+                self.statefull_move_piece(*m)
+                    .or(Some(State::WaitMove))
+            }
+            (Message::GameDone(), _) => {
+                println!("client game done! with state {:?}", self.state);
+                None
             }
             _ => None,
         }
@@ -353,7 +370,7 @@ impl Game {
                         self.send_mess_queue.push_back(Message::GameDone());
                         self.state = State::Lost
                     }
-                    _ => { self.state = State::WaitMove }
+                    _ => self.state = State::WaitMove,
                 }
             }
         }
@@ -410,6 +427,7 @@ impl Game {
     /// returns None
     fn statefull_move_piece(&mut self, m: BoardMove) -> Option<State> {
         if let Some(res) = self.board.move_piece(m) {
+            println!("move_piece result: \ndeleted: {:?}\nset: {:?}\nmoved: {:?}", res.pieces_deleted, res.pieces_set, res.pieces_moved);
             match is_lost_or_won(self.is_host, &res.pieces_deleted) {
                 Some(EndCheck::Victory) => Some(State::Won),
                 Some(EndCheck::Loss) => Some(State::Lost),
@@ -427,6 +445,7 @@ enum EndCheck {
 }
 fn is_lost_or_won(is_host: bool, deleted: &Vec<ChessBoardCell>) -> Option<EndCheck> {
     for cell in deleted {
+        println!("deleted: {:?}", deleted);
         match *cell {
             ChessBoardCell::Black(ChessPiece::King(_)) if is_host => {
                 return Some(EndCheck::Victory)

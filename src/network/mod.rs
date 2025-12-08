@@ -81,6 +81,9 @@ fn decode_message(bytes: &[u8]) -> Result<(Message, usize)> {
         0x03 => {
             Ok((Message::Accepted(), 1))
         }
+        0x04 => {
+            Ok((Message::GameDone(), 1))
+        }
         _ => Err(anyhow!("invalid message kind")),
     }
 }
