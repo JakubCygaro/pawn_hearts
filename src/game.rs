@@ -5,7 +5,6 @@ use crate::network::{Connection, MessageQueue};
 
 use super::board::{self, BoardPos, MoveBuilder};
 use super::helpers;
-use super::network;
 use super::resources::*;
 use raylib::{
     ffi::{MouseButton, TraceLogLevel},
@@ -344,7 +343,7 @@ impl Game {
     }
 
     fn handle_select(&mut self, pos: board::BoardPos) {
-        if let Some(selected) = &self.selected_piece {
+        if let Some(_selected) = &self.selected_piece {
             panic!("selecting while other piece was already selected")
         } else {
             let Some(cell) = self.board.at(pos) else {
@@ -453,7 +452,7 @@ impl Game {
             height: size,
         };
     }
-    pub fn on_network_event(&mut self, ev: NetworkEvent) {}
+    pub fn on_network_event(&mut self, _ev: NetworkEvent) {}
 
     /// Takes into consideration wether the move casuses a loss or victory
     /// # Returns

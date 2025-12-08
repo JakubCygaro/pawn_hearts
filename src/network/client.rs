@@ -1,7 +1,6 @@
 use super::{Message, MessageQueue, NetBuf, SessId};
 use anyhow::{anyhow, Result};
-use std::net::{SocketAddr, TcpStream};
-use std::str::FromStr;
+use std::net::{TcpStream};
 use std::io::{ErrorKind, Read, Write};
 
 pub struct Client {
@@ -9,7 +8,7 @@ pub struct Client {
     send: MessageQueue,
     recv: MessageQueue,
     tcp: TcpStream,
-    addr: SocketAddr,
+    // addr: SocketAddr,
     session_id: SessId,
     buf: NetBuf,
 }
@@ -30,7 +29,7 @@ impl Client {
             send: MessageQueue::new(),
             recv: MessageQueue::new(),
             tcp,
-            addr: SocketAddr::from_str(address)?,
+            // addr: SocketAddr::from_str(address)?,
             session_id: [0; 4],
             buf: [0; 128],
         })

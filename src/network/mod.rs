@@ -1,9 +1,9 @@
 use crate::board::{BoardMove, BoardPos};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use bytes::{BufMut, Bytes, BytesMut};
 use std::collections::VecDeque;
 use std::io::{ErrorKind, Read, Write};
-use std::net::{TcpListener, TcpStream, UdpSocket};
+use std::net::{TcpStream};
 
 pub mod client;
 pub mod host;
@@ -29,7 +29,7 @@ pub fn recv_messages(
     let mut ret = vec![];
     match sock.read(buf) {
         Ok(n) => {
-            println!("recieved something: {:?}\nn: {n}", buf);
+            println!("Decoder: recieved something: {:?}\nn: {n}", buf);
             let mut cursor = 0;
             while cursor < n {
                 // would be too short for a valid message
@@ -42,7 +42,7 @@ pub fn recv_messages(
                 }
                 cursor += 4;
                 while let Ok((msg, off)) = decode_message(&buf[cursor..]) {
-                    println!("decoded message: {:?}", msg);
+                    println!("Decoder: decoded message: {:?}", msg);
                     ret.push(msg);
                     cursor += off;
                 }
@@ -101,7 +101,7 @@ fn decode_message(bytes: &[u8]) -> Result<(Message, usize)> {
         0x04 => {
             Ok((Message::GameDone(), 1))
         }
-        _ => Err(anyhow!("invalid message kind")),
+        _ => bail!("Decoder: invalid message kind"),
     }
 }
 #[derive(Debug)]

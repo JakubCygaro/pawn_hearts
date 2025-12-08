@@ -255,7 +255,7 @@ fn rook(mv: Move, b: &Board) -> ValidationResult {
                 return ValidationResult::NotValid;
             };
         }
-        return ValidationResult::Valid(None);
+        ValidationResult::Valid(None)
     } else if mv.rows == 0 {
         for c in bisex_range(0, mv.columns).skip(1) {
             let to_check = BoardPos {
@@ -266,7 +266,7 @@ fn rook(mv: Move, b: &Board) -> ValidationResult {
                 return ValidationResult::NotValid;
             };
         }
-        return ValidationResult::Valid(None);
+        ValidationResult::Valid(None)
     } else {
         ValidationResult::NotValid
     }

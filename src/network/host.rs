@@ -1,7 +1,7 @@
 use super::{Message, MessageQueue, NetBuf, SessId, MAGIC_N};
 use anyhow::{anyhow, Result};
 use std::io::{ErrorKind, Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream, UdpSocket};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::str::FromStr;
 
 pub struct Host {

@@ -39,11 +39,11 @@ impl BoardMove {
         bytes.put_u8(self.to.col as u8);
         bytes.put_u8(self.rows as u8);
         bytes.put_u8(self.columns as u8);
-        return bytes.into();
+        bytes.into()
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct MoveBuilder {
     from: BoardPos,
     to: BoardPos,
@@ -103,8 +103,7 @@ pub struct BoardPos {
 
 impl BoardPos {
     fn to_index(self) -> usize {
-        let index = (self.row * 8) + self.col;
-        index
+        (self.row * 8) + self.col
     }
 }
 
@@ -167,15 +166,6 @@ pub enum ChessPiece {
     Rook,
     Queen,
     King(bool),
-}
-
-impl ChessPiece {
-    pub fn is_king(&self) -> bool {
-        match *self {
-            Self::King(_) => true,
-            _ => false,
-        }
-    }
 }
 
 pub struct BoardRenderData {

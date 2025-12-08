@@ -19,7 +19,7 @@ pub struct DirectoryResourceLoader {
 impl DirectoryResourceLoader {
     pub fn new(root_dir: PathBuf) -> Self {
         Self {
-            root_dir: root_dir,
+            root_dir,
             textures: HashMap::new(),
         }
     }
@@ -34,7 +34,7 @@ impl DirectoryResourceLoader {
 
         let texture = handle
             .load_texture(thread, file_path.to_str().unwrap())
-            .or_else(|e| Err(anyhow!(e)))?;
+            .map_err(|e| anyhow!(e))?;
         let texture = Rc::new(texture);
         self.textures.insert(path.to_string(), texture.clone());
         Ok(texture)
@@ -82,16 +82,13 @@ impl ResourceLoader for DirectoryResourceLoader {
         thread: &mut raylib::RaylibThread,
     ) -> Result<Rc<Texture2D>> {
         if let Some(t) = self.textures.get(path) {
-            return Ok(t.to_owned());
+            Ok(t.to_owned())
         } else {
             let loaded = self.load_texture(path, handle, thread)?;
             Ok(loaded)
         }
     }
     fn get_texture_no_load(&self, path: &str) -> Option<Rc<Texture2D>> {
-        match self.textures.get(path) {
-            None => None,
-            Some(t) => Some(t.clone()),
-        }
+        self.textures.get(path).cloned()
     }
 }
