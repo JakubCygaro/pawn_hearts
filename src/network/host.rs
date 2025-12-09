@@ -128,4 +128,7 @@ impl super::Connection for Host {
     fn recv(&mut self) -> Option<Message> {
         self.recv.pop_front()
     }
+    fn is_connected(&self) -> bool {
+        matches!(&self.state, HostConnection::Connected)
+    }
 }

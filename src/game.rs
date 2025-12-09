@@ -1,4 +1,5 @@
 use crate::board::{ChessBoardCell, ChessPiece};
+use crate::gui;
 use crate::network::client::Client;
 use crate::network::host::Host;
 use crate::network::{Connection, MessageQueue};
@@ -28,7 +29,7 @@ pub struct Selection {
 #[derive(Debug)]
 pub struct RunArgs {
     pub address: String,
-    pub is_host: bool
+    pub is_host: bool,
 }
 
 pub struct Game {
@@ -55,6 +56,7 @@ enum State {
     WaitMove,
     Won,
     Lost,
+    SetupConnection,
 }
 
 pub enum NetworkEvent {
@@ -80,12 +82,18 @@ impl Game {
             .load_all_root(&mut window_handle, &mut window_thread)
             .expect("could not load all textures");
 
-        let run_args = run_args.unwrap();
+        let is_host = run_args.as_ref().map(|ra| ra.is_host);
 
-        let conn: Box<dyn Connection> = if run_args.is_host {
-            Box::new(Host::new(&run_args.address).unwrap())
-        } else {
-            Box::new(Client::new(&run_args.address).unwrap())
+        let conn: Option<Box<dyn Connection>> = match run_args {
+            Some(ra) => {
+                let c: Box<dyn Connection> = if ra.is_host {
+                    Box::new(Host::new(&ra.address).unwrap())
+                } else {
+                    Box::new(Client::new(&ra.address).unwrap())
+                };
+                Some(c)
+            }
+            None => None,
         };
 
         Self {
@@ -98,14 +106,12 @@ impl Game {
             loader: Box::new(loader),
             board_data: board::BoardRenderData::default(),
             selected_piece: None,
-            reversed: !run_args.is_host,
-            is_host: run_args.is_host,
-            conn: Some(conn),
-            state: if run_args.is_host {
-                State::Move
-            } else {
-                State::WaitMove
-            },
+            reversed: false,
+            is_host: true,
+            conn,
+            state: is_host
+                .map(|ih| if ih { State::Move } else { State::WaitMove })
+                .unwrap_or(State::SetupConnection),
             send_queue: MessageQueue::new(),
         }
     }
@@ -114,7 +120,7 @@ impl Game {
             self.resize();
         }
         let mut msgs: Vec<Message> = vec![];
-        if self.conn.is_some(){
+        if self.conn.is_some() {
             let conn = self.conn.as_mut().unwrap();
             conn.poll().unwrap();
             while let Some(msg) = conn.recv() {
@@ -150,10 +156,10 @@ impl Game {
         self.update_mouse();
 
         let mut msgs = vec![];
-        while let Some(m) = self.send_queue.pop_front(){
+        while let Some(m) = self.send_queue.pop_front() {
             msgs.push(m)
         }
-        if self.conn.is_some(){
+        if self.conn.is_some() {
             let conn = self.conn.as_mut().unwrap();
             for m in msgs {
                 conn.send(m);
@@ -202,8 +208,7 @@ impl Game {
                     .or(Some(State::WaitMove))
             }
             (Message::GameDone(), State::WaitReply(m)) => {
-                self.statefull_move_piece(*m)
-                    .or(Some(State::WaitMove))
+                self.statefull_move_piece(*m).or(Some(State::WaitMove))
             }
             (Message::GameDone(), _) => {
                 println!("client game done! with state {:?}", self.state);
@@ -213,108 +218,6 @@ impl Game {
         }
     }
 
-    pub fn draw(&mut self) {
-        let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
-        draw_handle.clear_background(Color::BLACK);
-
-        let mut color = Color::WHITESMOKE;
-
-        let iter = if !self.reversed {
-            self.board.cells().iter().enumerate().collect::<Vec<_>>()
-        } else {
-            self.board.cells().iter().rev().enumerate().collect()
-        };
-
-        for (n, cell) in iter {
-            let col = n % 8;
-            let row = n / 8;
-            let rect = Rectangle {
-                x: self.board_data.start.x + col as f32 * self.board_data.cell_size,
-                y: self.board_data.start.y + row as f32 * self.board_data.cell_size,
-                width: self.board_data.cell_size,
-                height: self.board_data.cell_size,
-            };
-            draw_handle.draw_rectangle_pro(rect, Vector2::zero(), 0., color);
-            color = if col == 7 {
-                color
-            } else if color == Color::WHITESMOKE {
-                Color::BURLYWOOD
-            } else {
-                Color::WHITESMOKE
-            };
-
-            if let Some(texture) = cell.get_texture_path() {
-                if let Some(texture) = self.loader.get_texture_no_load(texture) {
-                    let source = Rectangle {
-                        height: texture.height as f32,
-                        width: texture.width as f32,
-                        x: 0.,
-                        y: 0.,
-                    };
-                    draw_handle.draw_texture_pro(
-                        texture.as_ref(),
-                        source,
-                        rect,
-                        Vector2::zero(),
-                        0.,
-                        Color::WHITE,
-                    )
-                }
-            }
-        }
-        if let Some(selection) = &self.selected_piece {
-            let mouse = draw_handle.get_mouse_position();
-            let cell_sz = self.board_data.cell_size;
-            let cell_pos = Vector2 {
-                x: mouse.x - (cell_sz / 2.),
-                y: mouse.y - (cell_sz / 2.),
-            };
-            let texture = self
-                .loader
-                .get_texture_no_load(
-                    selection
-                        .piece
-                        .get_texture_path()
-                        .expect("selection with no texture"),
-                )
-                .expect("texture for selection missing");
-            draw_handle.draw_texture_pro(
-                texture.as_ref(),
-                Rectangle {
-                    height: texture.height as f32,
-                    width: texture.width as f32,
-                    x: 0.,
-                    y: 0.,
-                },
-                Rectangle {
-                    height: cell_sz,
-                    width: cell_sz,
-                    x: cell_pos.x,
-                    y: cell_pos.y,
-                },
-                Vector2::zero(),
-                0.,
-                Color::WHITE,
-            )
-        }
-    }
-    fn board_pos(&self) -> Option<BoardPos> {
-        let mouse_pos = self.window_handle.get_mouse_position();
-        if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
-            let point = if self.reversed {
-                Vector2 {
-                    x: self.board_data.rect.width - point.x,
-                    y: self.board_data.rect.height - point.y,
-                }
-            } else {
-                point
-            };
-            let pos = helpers::get_board_pos(&self.board_data, point);
-            Some(pos)
-        } else {
-            None
-        }
-    }
     fn update_mouse(&mut self) {
         if self
             .window_handle
@@ -460,12 +363,139 @@ impl Game {
     /// returns None
     fn statefull_move_piece(&mut self, m: BoardMove) -> Option<State> {
         if let Some(res) = self.board.move_piece(m) {
-            println!("move_piece result: \ndeleted: {:?}\nset: {:?}\nmoved: {:?}", res.pieces_deleted, res.pieces_set, res.pieces_moved);
+            println!(
+                "move_piece result: \ndeleted: {:?}\nset: {:?}\nmoved: {:?}",
+                res.pieces_deleted, res.pieces_set, res.pieces_moved
+            );
             match is_lost_or_won(self.is_host, &res.pieces_deleted) {
                 Some(EndCheck::Victory) => Some(State::Won),
                 Some(EndCheck::Loss) => Some(State::Lost),
                 _ => None,
             }
+        } else {
+            None
+        }
+    }
+    pub fn draw(&mut self) {
+        match self.state {
+            State::SetupConnection => {
+                self.draw_setup_connection();
+            }
+            _ => {
+                self.draw_board();
+            }
+        }
+    }
+    fn draw_setup_connection(&mut self) {
+        let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
+        draw_handle.clear_background(Color::WHITESMOKE);
+        gui::button(
+            &mut draw_handle,
+            Vector2 {
+                x: (self.width as f32 / 2.),
+                y: (self.height as f32 / 2.),
+            },
+            "Connect",
+        );
+    }
+    fn draw_board(&mut self) {
+        let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
+        draw_handle.clear_background(Color::BLACK);
+
+        let mut color = Color::WHITESMOKE;
+
+        let iter = if !self.reversed {
+            self.board.cells().iter().enumerate().collect::<Vec<_>>()
+        } else {
+            self.board.cells().iter().rev().enumerate().collect()
+        };
+
+        for (n, cell) in iter {
+            let col = n % 8;
+            let row = n / 8;
+            let rect = Rectangle {
+                x: self.board_data.start.x + col as f32 * self.board_data.cell_size,
+                y: self.board_data.start.y + row as f32 * self.board_data.cell_size,
+                width: self.board_data.cell_size,
+                height: self.board_data.cell_size,
+            };
+            draw_handle.draw_rectangle_pro(rect, Vector2::zero(), 0., color);
+            color = if col == 7 {
+                color
+            } else if color == Color::WHITESMOKE {
+                Color::BURLYWOOD
+            } else {
+                Color::WHITESMOKE
+            };
+
+            if let Some(texture) = cell.get_texture_path() {
+                if let Some(texture) = self.loader.get_texture_no_load(texture) {
+                    let source = Rectangle {
+                        height: texture.height as f32,
+                        width: texture.width as f32,
+                        x: 0.,
+                        y: 0.,
+                    };
+                    draw_handle.draw_texture_pro(
+                        texture.as_ref(),
+                        source,
+                        rect,
+                        Vector2::zero(),
+                        0.,
+                        Color::WHITE,
+                    )
+                }
+            }
+        }
+        if let Some(selection) = &self.selected_piece {
+            let mouse = draw_handle.get_mouse_position();
+            let cell_sz = self.board_data.cell_size;
+            let cell_pos = Vector2 {
+                x: mouse.x - (cell_sz / 2.),
+                y: mouse.y - (cell_sz / 2.),
+            };
+            let texture = self
+                .loader
+                .get_texture_no_load(
+                    selection
+                        .piece
+                        .get_texture_path()
+                        .expect("selection with no texture"),
+                )
+                .expect("texture for selection missing");
+            draw_handle.draw_texture_pro(
+                texture.as_ref(),
+                Rectangle {
+                    height: texture.height as f32,
+                    width: texture.width as f32,
+                    x: 0.,
+                    y: 0.,
+                },
+                Rectangle {
+                    height: cell_sz,
+                    width: cell_sz,
+                    x: cell_pos.x,
+                    y: cell_pos.y,
+                },
+                Vector2::zero(),
+                0.,
+                Color::WHITE,
+            )
+        }
+    }
+    fn board_pos(&self) -> Option<BoardPos> {
+        let mouse_pos = self.window_handle.get_mouse_position();
+        if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
+            let point = if self.reversed {
+                Vector2 {
+                    x: self.board_data.rect.width - point.x,
+                    y: self.board_data.rect.height - point.y,
+                }
+            } else {
+                point
+            };
+            let pos = helpers::get_board_pos(&self.board_data, point);
+            Some(pos)
         } else {
             None
         }

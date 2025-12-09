@@ -3,7 +3,7 @@ use anyhow::{bail, Result};
 use bytes::{BufMut, Bytes, BytesMut};
 use std::collections::VecDeque;
 use std::io::{ErrorKind, Read, Write};
-use std::net::{TcpStream};
+use std::net::TcpStream;
 
 pub mod client;
 pub mod host;
@@ -15,11 +15,16 @@ pub const NETBUF_SIZE: usize = 128;
 pub type MessageQueue = VecDeque<Message>;
 
 pub trait Connection {
-    // fn state(&self);
+    fn is_connected(&self) -> bool;
     fn poll(&mut self) -> Result<()>;
     fn send(&mut self, msg: Message);
     fn recv(&mut self) -> Option<Message>;
 }
+// pub enum ConnectionState{
+//     Idle,
+//     Connecting,
+//     Connected,
+// }
 
 pub fn recv_messages(
     sock: &mut TcpStream,
@@ -92,24 +97,18 @@ fn decode_message(bytes: &[u8]) -> Result<(Message, usize)> {
             ));
             Ok((mess, MOVED_SZ))
         }
-        0x02 => {
-            Ok((Message::Rejected(), 1))
-        }
-        0x03 => {
-            Ok((Message::Accepted(), 1))
-        }
-        0x04 => {
-            Ok((Message::GameDone(), 1))
-        }
+        0x02 => Ok((Message::Rejected(), 1)),
+        0x03 => Ok((Message::Accepted(), 1)),
+        0x04 => Ok((Message::GameDone(), 1)),
         _ => bail!("Decoder: invalid message kind"),
     }
 }
 #[derive(Debug)]
 pub enum Message {
     Moved(super::board::BoardMove), // 0x01
-    Rejected(), // 0x02
-    Accepted(), // 0x03
-    GameDone(), // 0x04
+    Rejected(),                     // 0x02
+    Accepted(),                     // 0x03
+    GameDone(),                     // 0x04
 }
 fn encode_message(msg: &Message) -> Bytes {
     let mut bytes = BytesMut::new();
