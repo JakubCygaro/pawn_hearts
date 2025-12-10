@@ -77,10 +77,13 @@ pub fn text_input(
     text: &mut String,
     font: FontWrap,
 ) -> (bool, rmath::Vector2) {
+    let mut ret = false;
     if let Some(c) = hndl.get_key_pressed() {
+        ret = true;
         (c == KeyboardKey::KEY_BACKSPACE).then(|| text.pop());
     }
     if let Some(c) = hndl.get_char_pressed() {
+        ret = true;
         text.push(c)
     }
     let text = if text.is_empty() {
@@ -103,5 +106,27 @@ pub fn text_input(
         font.sp,
         Color::BLACK,
     );
-    (false, area_sz)
+    (ret, area_sz)
+}
+
+pub fn text(
+    hndl: &mut RaylibDrawHandle,
+    pos: rmath::Vector2,
+    text: &str,
+    font: FontWrap,
+) -> (bool, rmath::Vector2) {
+    let tsz = measure_text_ex(font.font, text, font.sz, font.sp);
+    let area_sz = rmath::Vector2 {
+        x: tsz.x + 2.0 * font.sp,
+        y: tsz.y * 1.5,
+    };
+    hndl.draw_text_ex(
+        font.font,
+        text,
+        pos - (tsz / 2.0),
+        font.sz,
+        font.sp,
+        Color::BLACK,
+    );
+    (true, area_sz)
 }
