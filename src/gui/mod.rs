@@ -90,7 +90,7 @@ pub fn text_input(
     };
     let tsz = measure_text_ex(font.font, text, font.sz, font.sp);
     let area_sz = rmath::Vector2 {
-        x: tsz.x + 25.0,
+        x: tsz.x + 2.0 * font.sp,
         y: tsz.y * 1.5,
     };
     let center = pos - area_sz / 2.;
