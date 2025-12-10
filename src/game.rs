@@ -1,5 +1,5 @@
 use crate::board::{ChessBoardCell, ChessPiece};
-use crate::gui;
+use crate::gui::{self, FontWrap};
 use crate::network::client::Client;
 use crate::network::host::Host;
 use crate::network::{Connection, MessageQueue};
@@ -47,6 +47,7 @@ pub struct Game {
     conn: Option<Box<dyn Connection>>,
     send_queue: MessageQueue,
     state: State,
+    input_text: String,
 }
 #[derive(PartialEq, Clone, Debug)]
 enum State {
@@ -113,6 +114,7 @@ impl Game {
                 .map(|ih| if ih { State::Move } else { State::WaitMove })
                 .unwrap_or(State::SetupConnection),
             send_queue: MessageQueue::new(),
+            input_text: String::from("")
         }
     }
     pub fn update(&mut self) {
@@ -389,13 +391,35 @@ impl Game {
     fn draw_setup_connection(&mut self) {
         let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
         draw_handle.clear_background(Color::WHITESMOKE);
+        let font = self.loader.get_font_no_load("LinLibertine_R.otf").unwrap();
+        let fontw = FontWrap::wrap(font.as_ref(), 24., 12.);
+        let host_pos = Vector2 {
+                x: (self.width as f32 / 2.),
+                y: (self.height as f32 / 2.),
+            };
+        let (_, sz) = gui::button(
+            &mut draw_handle,
+            host_pos,
+            "Connect",
+            fontw,
+        );
         gui::button(
             &mut draw_handle,
             Vector2 {
-                x: (self.width as f32 / 2.),
-                y: (self.height as f32 / 2.),
+                x: host_pos.x,
+                y: host_pos.y + (sz.y * 1.5)
             },
-            "Connect",
+            "Host",
+            fontw,
+        );
+        gui::text_input(
+            &mut draw_handle,
+            Vector2 {
+                x: host_pos.x,
+                y: host_pos.y - (sz.y * 1.5)
+            },
+            &mut self.input_text,
+            fontw,
         );
     }
     fn draw_board(&mut self) {
