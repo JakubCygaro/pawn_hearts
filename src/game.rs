@@ -13,7 +13,7 @@ use raylib::{
     prelude::{self as ray, color::Color, RaylibDraw},
     RaylibHandle, RaylibThread,
 };
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::ops::Not;
 use std::{path::PathBuf, str::FromStr};
 
@@ -115,11 +115,17 @@ impl Game {
             is_host: true,
             conn,
             state: is_host
-                .map(|ih| if ih { State::Move } else { State::WaitMove })
+                .map(|ih| {
+                    if ih {
+                        State::ConnectingHost
+                    } else {
+                        State::ConnectingClient
+                    }
+                })
                 .unwrap_or(State::SetupConnection),
             send_queue: MessageQueue::new(),
             input_text: String::from(""),
-            error_msg: None
+            error_msg: None,
         }
     }
     pub fn update(&mut self) {
@@ -154,6 +160,12 @@ impl Game {
                     self.state.clone()
                 }
             }
+            State::ConnectingClient if self.conn.as_ref().unwrap().is_connected() => {
+                self.is_host = false;
+                self.reversed = true;
+                State::WaitMove
+            }
+            State::ConnectingHost if self.conn.as_ref().unwrap().is_connected() => State::Move,
             State::Won | State::Lost => {
                 println!("Game Finished");
                 self.state.clone()
@@ -384,9 +396,56 @@ impl Game {
         }
     }
     pub fn draw(&mut self) {
+        let font = self.loader.get_font_no_load("LinLibertine_R.otf").unwrap();
+        let fontw = FontWrap::wrap(font.as_ref(), 24., 12.);
         match self.state {
             State::SetupConnection => {
                 self.draw_setup_connection();
+            }
+            State::ConnectingClient if !self.conn.as_ref().unwrap().is_connected() => {
+                let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
+                draw_handle.clear_background(Color::WHITESMOKE);
+                gui::text(
+                    &mut draw_handle,
+                    Vector2 {
+                        x: (self.width as f32 / 2.),
+                        y: (self.height as f32 / 2.),
+                    },
+                    "Connecting to host",
+                    fontw,
+                );
+            }
+            State::ConnectingHost if !self.conn.as_ref().unwrap().is_connected() => {
+                let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
+                draw_handle.clear_background(Color::WHITESMOKE);
+                gui::text(
+                    &mut draw_handle,
+                    Vector2 {
+                        x: (self.width as f32 / 2.),
+                        y: (self.height as f32 / 2.),
+                    },
+                    "Waiting for client",
+                    fontw,
+                );
+            }
+            State::Won | State::Lost => {
+                self.draw_board();
+                let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
+                let pos = Vector2 {
+                    x: (self.width as f32 / 2.),
+                    y: (self.height as f32 / 2.),
+                };
+                let sz = Vector2 {
+                    x: (self.width as f32 / 4.),
+                    y: (self.height as f32 / 8.),
+                };
+                draw_handle.draw_rectangle_v(pos - (sz / 2.), sz, Color::GRAY);
+                let msg = match self.state {
+                    State::Won => "You won",
+                    State::Lost => "You lost",
+                    _ => unreachable!(),
+                };
+                gui::text(&mut draw_handle, pos, msg, fontw);
             }
             _ => {
                 self.draw_board();
@@ -399,20 +458,15 @@ impl Game {
         let font = self.loader.get_font_no_load("LinLibertine_R.otf").unwrap();
         let fontw = FontWrap::wrap(font.as_ref(), 24., 12.);
         let connect_pos = Vector2 {
-                x: (self.width as f32 / 2.),
-                y: (self.height as f32 / 2.),
-            };
-        let (client, sz) = gui::button(
-            &mut draw_handle,
-            connect_pos,
-            "Connect",
-            fontw,
-        );
+            x: (self.width as f32 / 2.),
+            y: (self.height as f32 / 2.),
+        };
+        let (client, sz) = gui::button(&mut draw_handle, connect_pos, "Connect", fontw);
         let (host, host_sz) = gui::button(
             &mut draw_handle,
             Vector2 {
                 x: connect_pos.x,
-                y: connect_pos.y + (sz.y * 1.5)
+                y: connect_pos.y + (sz.y * 1.5),
             },
             "Host",
             fontw,
@@ -421,7 +475,7 @@ impl Game {
             &mut draw_handle,
             Vector2 {
                 x: connect_pos.x,
-                y: connect_pos.y - (sz.y * 1.5)
+                y: connect_pos.y - (sz.y * 1.5),
             },
             &mut self.input_text,
             fontw,
@@ -431,36 +485,28 @@ impl Game {
                 &mut draw_handle,
                 Vector2 {
                     x: connect_pos.x,
-                    y: connect_pos.y + (sz.y * 1.5) + (host_sz.y * 1.5)
+                    y: connect_pos.y + (sz.y * 1.5) + (host_sz.y * 1.5),
                 },
                 self.error_msg.as_ref().unwrap(),
-                fontw
+                fontw,
             );
         } else {
             self.error_msg = None;
         }
-        match (client, host, IpAddr::from_str(self.input_text.as_str())) {
+        match (client, host, SocketAddr::from_str(self.input_text.as_str())) {
             (true, false, Ok(addr)) => {
                 self.state = State::ConnectingClient;
-                self.conn = Some(
-                    Box::new(
-                        Client::new(&addr.to_string()).unwrap()
-                    )
-                )
+                self.conn = Some(Box::new(Client::new(&addr.to_string()).unwrap()))
             }
             (false, true, Ok(addr)) => {
                 self.state = State::ConnectingHost;
-                self.conn = Some(
-                    Box::new(
-                        Host::new(&addr.to_string()).unwrap()
-                    )
-                )
+                self.conn = Some(Box::new(Host::new(&addr.to_string()).unwrap()))
             }
             (false, false, _) => (),
-            (_, _, Err(_)) => {
-                self.error_msg = "Invalid ip addres".to_owned().into();
+            (_, _, Err(e)) => {
+                self.error_msg = "Invalid ip address".to_owned().into();
             }
-            _ => ()
+            _ => (),
         };
     }
     fn draw_board(&mut self) {
