@@ -166,10 +166,6 @@ impl Game {
                 State::WaitMove
             }
             State::ConnectingHost if self.conn.as_ref().unwrap().is_connected() => State::Move,
-            State::Won | State::Lost => {
-                println!("Game Finished");
-                self.state.clone()
-            }
             _ => self.state.clone(),
         };
         self.update_mouse();
@@ -428,25 +424,6 @@ impl Game {
                     fontw,
                 );
             }
-            State::Won | State::Lost => {
-                self.draw_board();
-                let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
-                let pos = Vector2 {
-                    x: (self.width as f32 / 2.),
-                    y: (self.height as f32 / 2.),
-                };
-                let sz = Vector2 {
-                    x: (self.width as f32 / 4.),
-                    y: (self.height as f32 / 8.),
-                };
-                draw_handle.draw_rectangle_v(pos - (sz / 2.), sz, Color::GRAY);
-                let msg = match self.state {
-                    State::Won => "You won",
-                    State::Lost => "You lost",
-                    _ => unreachable!(),
-                };
-                gui::text(&mut draw_handle, pos, msg, fontw);
-            }
             _ => {
                 self.draw_board();
             }
@@ -592,6 +569,25 @@ impl Game {
                 0.,
                 Color::WHITE,
             )
+        }
+        if matches!(self.state, State::Won | State::Lost){
+            let font = self.loader.get_font_no_load("LinLibertine_R.otf").unwrap();
+            let fontw = FontWrap::wrap(font.as_ref(), 24., 12.);
+            let pos = Vector2 {
+                x: (self.width as f32 / 2.),
+                y: (self.height as f32 / 2.),
+            };
+            let sz = Vector2 {
+                x: (self.width as f32 / 4.),
+                y: (self.height as f32 / 8.),
+            };
+            draw_handle.draw_rectangle_v(pos - (sz / 2.), sz, Color::GRAY);
+            let msg = match self.state {
+                State::Won => "You won",
+                State::Lost => "You lost",
+                _ => unreachable!(),
+            };
+            gui::text(&mut draw_handle, pos, msg, fontw);
         }
     }
     fn board_pos(&self) -> Option<BoardPos> {
