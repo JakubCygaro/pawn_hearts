@@ -448,7 +448,7 @@ impl Game {
             "Host",
             fontw,
         );
-        let (input, _) = gui::text_input(
+        let (input, input_sz) = gui::text_input(
             &mut draw_handle,
             Vector2 {
                 x: connect_pos.x,
@@ -470,6 +470,16 @@ impl Game {
         } else {
             self.error_msg = None;
         }
+        let fontw = FontWrap::wrap(font.as_ref(), 48., 12.);
+        gui::text(
+            &mut draw_handle,
+            Vector2 {
+                x: connect_pos.x,
+                y: connect_pos.y - (sz.y * 1.5) - (input_sz.y * 2.5),
+            },
+            "Pawn Hearts",
+            fontw,
+        );
         match (client, host, SocketAddr::from_str(self.input_text.as_str())) {
             (true, false, Ok(addr)) => {
                 self.state = State::ConnectingClient;
