@@ -277,20 +277,15 @@ impl ChessBoard {
             match side_effect {
                 SideEffect::Delete(p, c) => {
                     res.pieces_deleted.push(c);
-                    if let Some(deleted) = self.take_from(p) {
-                        println!("Deleted: {:?}", deleted);
-                    }
                 }
                 SideEffect::Move(m) => {
                     let piece = self.take_from(m.from).unwrap();
                     self.place_at(m.to, piece).unwrap();
                     res.pieces_moved.push((piece, m));
-                    println!("Moved {:?} from {:?} to {:?}", piece, m.from, m.to);
                 }
                 SideEffect::SetAt(p, piece) => {
                     self.place_at(p, piece).unwrap();
                     res.pieces_set.push((piece, p));
-                    println!("Set {:?} at {:?}", piece, p)
                 }
             }
         }
@@ -319,7 +314,6 @@ impl ChessBoard {
             ) {
                 ValidationResult::NotValid
             } else if move_validation::MOVEMAP.contains_key(from_cell) {
-                println!("moving: {:?}", from_cell);
                 let res = move_validation::MOVEMAP[from_cell](m, self);
                 match res {
                     ValidationResult::Valid(se) => {

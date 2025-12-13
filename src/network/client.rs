@@ -21,7 +21,6 @@ pub enum ClientConnection {
 
 impl Client {
     pub fn new(address: &str) -> Result<Self> {
-        println!("{}", address);
         let tcp = TcpStream::connect(address)?;
         tcp.set_nonblocking(true)?;
         Ok(Self {
@@ -67,7 +66,6 @@ impl super::Connection for Client {
                     }
                     let id: SessId = self.buf[4..8].try_into().unwrap();
                     self.session_id = id;
-                    println!("session_id: {:?}", id);
                     self.buf.fill(0);
                     Ok(ClientConnection::Connected)
                 }

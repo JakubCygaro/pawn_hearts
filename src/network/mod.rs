@@ -31,7 +31,6 @@ pub fn recv_messages(
     let mut ret = vec![];
     match sock.read(buf) {
         Ok(n) => {
-            println!("Decoder: recieved something: {:?}\nn: {n}", buf);
             let mut cursor = 0;
             while cursor < n {
                 // would be too short for a valid message
@@ -44,19 +43,10 @@ pub fn recv_messages(
                 }
                 cursor += 4;
                 while let Ok((msg, off)) = decode_message(&buf[cursor..]) {
-                    println!("Decoder: decoded message: {:?}", msg);
                     ret.push(msg);
                     cursor += off;
                 }
             }
-            // if cursor < n - 1 {
-            //     let mut i = 0;
-            //     while cursor < n - 1 {
-            //         buf[i] = buf[cursor];
-            //         i += 1;
-            //         cursor += 1;
-            //     }
-            // }
             buf.fill(0);
             Ok(Some(ret))
         }

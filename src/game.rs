@@ -163,7 +163,6 @@ impl Game {
             match conn.poll() {
                 Ok(_) => {
                     while let Some(msg) = conn.recv() {
-                        println!("recieved message: {:?}", msg);
                         msgs.push(msg)
                     }
                 }
@@ -220,6 +219,9 @@ impl Game {
                 conn.send(m);
             }
         }
+        if self.window_handle.window_should_close(){
+            self.conn.as_mut().map(|c| c.shutdown()).unwrap_or_default();
+        }
     }
     fn handle_message(&mut self, msg: Message) -> Option<State> {
         if self.is_host {
@@ -265,7 +267,6 @@ impl Game {
                 self.statefull_move_piece(*m).or(Some(State::WaitMove))
             }
             (Message::GameDone(), _) => {
-                println!("client game done! with state {:?}", self.state);
                 None
             }
             _ => None,
@@ -344,7 +345,6 @@ impl Game {
                 }
                 let scratch: &mut board::ChessBoard = self.scratch_board.as_mut().unwrap();
                 if scratch.move_piece(m).is_some() {
-                    println!("move pending!");
                     self.state = State::MovePending(m);
                 } else {
                     self.scratch_board = None;
@@ -417,10 +417,6 @@ impl Game {
     /// returns None
     fn statefull_move_piece(&mut self, m: BoardMove) -> Option<State> {
         if let Some(res) = self.board.move_piece(m) {
-            println!(
-                "move_piece result: \ndeleted: {:?}\nset: {:?}\nmoved: {:?}",
-                res.pieces_deleted, res.pieces_set, res.pieces_moved
-            );
             match is_lost_or_won(self.is_host, &res.pieces_deleted) {
                 Some(EndCheck::Victory) => Some(State::Won),
                 Some(EndCheck::Loss) => Some(State::Lost),
@@ -744,7 +740,6 @@ enum EndCheck {
 }
 fn is_lost_or_won(is_host: bool, deleted: &Vec<ChessBoardCell>) -> Option<EndCheck> {
     for cell in deleted {
-        println!("deleted: {:?}", deleted);
         match *cell {
             ChessBoardCell::Black(ChessPiece::King(_)) if is_host => {
                 return Some(EndCheck::Victory)

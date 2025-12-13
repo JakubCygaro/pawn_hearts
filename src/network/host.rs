@@ -25,7 +25,6 @@ enum HostConnection {
 
 impl Host {
     pub fn new(address: &str) -> Result<Self> {
-        println!("{}", address);
         let list = TcpListener::bind(address)?;
         let session_id: SessId = rand::random();
         list.set_nonblocking(true)?;
@@ -88,7 +87,6 @@ impl super::Connection for Host {
             HostConnection::HandshakeRespond => {
                 self.buf[..4].copy_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
                 self.buf[4..8].copy_from_slice(&self.session_id);
-                println!("sending session_id: {:?}", &[..8]);
                 let res = self.tcp.as_mut().unwrap().write_all(&self.buf[..8]);
                 match res {
                     Err(e) => {
@@ -99,7 +97,6 @@ impl super::Connection for Host {
                         }
                     }
                     Ok(_) => {
-                        println!("host: handshake complete");
                         self.buf.fill(0);
                         Ok(HostConnection::Connected)
                     }

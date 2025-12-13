@@ -57,7 +57,7 @@ pub fn button(
             hndl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT),
         )
     } else {
-        (Color::YELLOW, false)
+        (Color::from_hex("FFFF7B").unwrap_or(Color::YELLOW), false)
     };
     hndl.draw_rectangle_v(center, button_sz, c);
     let mut circle_pos = rmath::Vector2 {
@@ -109,15 +109,16 @@ pub fn text_input(
         x: tsz.x + 2.0 * font.sp,
         y: tsz.y * 1.5,
     };
+    let c = Color::from_hex("b0b3d0").unwrap_or(Color::GRAY);
     let center = pos - area_sz / 2.;
-    hndl.draw_rectangle_v(center, area_sz, Color::GRAY);
+    hndl.draw_rectangle_v(center, area_sz, c);
     let mut circle_pos = rmath::Vector2 {
         x: center.x,
         y: center.y + area_sz.y / 2.0,
     };
-    hndl.draw_circle_v(circle_pos, area_sz.y / 2.0, Color::GRAY);
+    hndl.draw_circle_v(circle_pos, area_sz.y / 2.0, c);
     circle_pos.x += area_sz.x;
-    hndl.draw_circle_v(circle_pos, area_sz.y / 2.0, Color::GRAY);
+    hndl.draw_circle_v(circle_pos, area_sz.y / 2.0, c);
     area_sz.x += area_sz.y;
     hndl.draw_text_ex(
         font.font,
