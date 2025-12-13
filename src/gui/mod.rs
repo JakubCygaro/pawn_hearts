@@ -41,7 +41,7 @@ pub fn button(
     font: FontWrap,
 ) -> (bool, rmath::Vector2) {
     let tsz = measure_text_ex(font.font, text, font.sz, font.sp);
-    let button_sz = tsz * 1.5;
+    let mut button_sz = tsz * 1.5;
     let center = pos - button_sz / 2.;
 
     let mouse_pos = hndl.get_mouse_position();
@@ -60,6 +60,14 @@ pub fn button(
         (Color::YELLOW, false)
     };
     hndl.draw_rectangle_v(center, button_sz, c);
+    let mut circle_pos = rmath::Vector2 {
+        x: center.x,
+        y: center.y + button_sz.y / 2.0,
+    };
+    hndl.draw_circle_v(circle_pos, button_sz.y / 2.0, c);
+    circle_pos.x += button_sz.x;
+    hndl.draw_circle_v(circle_pos, button_sz.y / 2.0, c);
+    button_sz.x += button_sz.x;
     hndl.draw_text_ex(
         font.font,
         text,
@@ -75,6 +83,7 @@ pub fn text_input(
     hndl: &mut RaylibDrawHandle,
     pos: rmath::Vector2,
     text: &mut String,
+    if_empty: Option<&str>,
     font: FontWrap,
 ) -> (bool, rmath::Vector2) {
     let mut ret = false;
@@ -87,17 +96,25 @@ pub fn text_input(
         text.push(c)
     }
     let text = if text.is_empty() {
-        "<Empty>"
+        if_empty.unwrap_or("<Empty>")
     } else {
         text.as_str()
     };
     let tsz = measure_text_ex(font.font, text, font.sz, font.sp);
-    let area_sz = rmath::Vector2 {
+    let mut area_sz = rmath::Vector2 {
         x: tsz.x + 2.0 * font.sp,
         y: tsz.y * 1.5,
     };
     let center = pos - area_sz / 2.;
     hndl.draw_rectangle_v(center, area_sz, Color::GRAY);
+    let mut circle_pos = rmath::Vector2 {
+        x: center.x,
+        y: center.y + area_sz.y / 2.0,
+    };
+    hndl.draw_circle_v(circle_pos, area_sz.y / 2.0, Color::GRAY);
+    circle_pos.x += area_sz.x;
+    hndl.draw_circle_v(circle_pos, area_sz.y / 2.0, Color::GRAY);
+    area_sz.x += area_sz.y;
     hndl.draw_text_ex(
         font.font,
         text,

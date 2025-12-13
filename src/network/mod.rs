@@ -15,16 +15,13 @@ pub const NETBUF_SIZE: usize = 128;
 pub type MessageQueue = VecDeque<Message>;
 
 pub trait Connection {
+    fn is_shutdown(&self) -> bool;
+    fn shutdown(&mut self);
     fn is_connected(&self) -> bool;
     fn poll(&mut self) -> Result<()>;
     fn send(&mut self, msg: Message);
     fn recv(&mut self) -> Option<Message>;
 }
-// pub enum ConnectionState{
-//     Idle,
-//     Connecting,
-//     Connected,
-// }
 
 pub fn recv_messages(
     sock: &mut TcpStream,

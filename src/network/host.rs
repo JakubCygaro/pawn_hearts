@@ -1,7 +1,7 @@
 use super::{Message, MessageQueue, NetBuf, SessId, MAGIC_N};
 use anyhow::{anyhow, Result};
 use std::io::{ErrorKind, Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::str::FromStr;
 
 pub struct Host {
@@ -10,6 +10,7 @@ pub struct Host {
     recv: MessageQueue,
     list: TcpListener,
     tcp: Option<TcpStream>,
+    shutdown: bool,
     addr: SocketAddr,
     session_id: SessId,
     buf: NetBuf,
@@ -37,6 +38,7 @@ impl Host {
             addr: SocketAddr::from_str(address)?,
             recv: MessageQueue::new(),
             send: MessageQueue::new(),
+            shutdown: false
         })
     }
 }
@@ -130,5 +132,16 @@ impl super::Connection for Host {
     }
     fn is_connected(&self) -> bool {
         matches!(&self.state, HostConnection::Connected)
+    }
+    fn shutdown(&mut self) {
+        if !self.shutdown {
+            if let Some(tcp) = &self.tcp {
+                tcp.shutdown(Shutdown::Both).expect("TcpStream shutdown failed");
+            }
+            self.shutdown = true;
+        }
+    }
+    fn is_shutdown(&self) -> bool {
+        self.shutdown
     }
 }

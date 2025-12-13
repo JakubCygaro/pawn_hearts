@@ -13,7 +13,7 @@ use raylib::{
     prelude::{self as ray, color::Color, RaylibDraw},
     RaylibHandle, RaylibThread,
 };
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::ops::Not;
 use std::{path::PathBuf, str::FromStr};
 
@@ -62,6 +62,7 @@ enum State {
     SetupConnection,
     ConnectingHost,
     ConnectingClient,
+    FatalError,
 }
 
 pub enum NetworkEvent {
@@ -133,12 +134,20 @@ impl Game {
             self.resize();
         }
         let mut msgs: Vec<Message> = vec![];
-        if self.conn.is_some() {
+        if self.conn.is_some() && !matches!(self.state, State::Won | State::Lost | State::FatalError ){
             let conn = self.conn.as_mut().unwrap();
-            conn.poll().unwrap();
-            while let Some(msg) = conn.recv() {
-                println!("recieved message: {:?}", msg);
-                msgs.push(msg)
+            match conn.poll(){
+                Ok(_) => {
+                    while let Some(msg) = conn.recv() {
+                        println!("recieved message: {:?}", msg);
+                        msgs.push(msg)
+                    }
+                }
+                Err(e) => {
+                    self.error_msg = Some("Connection failure".to_owned());
+                    eprintln!("{e}");
+                    self.state = State::FatalError;
+                }
             }
         }
         for m in msgs {
@@ -167,7 +176,10 @@ impl Game {
             }
             State::ConnectingHost if self.conn.as_ref().unwrap().is_connected() => State::Move,
             State::Won | State::Lost => {
-                println!("Game Finished");
+                let conn = self.conn.as_mut().unwrap();
+                if !conn.is_shutdown() {
+                    conn.shutdown();
+                }
                 self.state.clone()
             }
             _ => self.state.clone(),
@@ -186,7 +198,6 @@ impl Game {
         }
     }
     fn handle_message(&mut self, msg: Message) -> Option<State> {
-        println!("handle message: {:?}", msg);
         if self.is_host {
             self.handle_message_host(msg)
         } else {
@@ -447,10 +458,39 @@ impl Game {
                 };
                 gui::text(&mut draw_handle, pos, msg, fontw);
             }
+            State::FatalError => {
+                self.draw_fatal_error();
+            }
             _ => {
                 self.draw_board();
             }
         }
+    }
+    fn draw_fatal_error(&mut self) {
+        let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
+        draw_handle.clear_background(Color::WHITESMOKE);
+        let font = self.loader.get_font_no_load("LinLibertine_R.otf").unwrap();
+        let fontw = FontWrap::wrap(font.as_ref(), 24., 12.);
+        let msg_pos = Vector2 {
+            x: (self.width as f32 / 2.),
+            y: (self.height as f32 / 2.),
+        };
+        let (_, sz) = gui::text(
+            &mut draw_handle,
+            msg_pos,
+            "A fatal error has occured",
+            fontw,
+        );
+        let err_pos = Vector2 {
+            x: msg_pos.x,
+            y: msg_pos.y + (sz.y * 1.5)
+        };
+        gui::text(
+            &mut draw_handle,
+            err_pos,
+            self.error_msg.as_deref().unwrap_or("<nil>"),
+            fontw,
+        );
     }
     fn draw_setup_connection(&mut self) {
         let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
@@ -478,6 +518,7 @@ impl Game {
                 y: connect_pos.y - (sz.y * 1.5),
             },
             &mut self.input_text,
+            Some("<IP ADDRESS>"),
             fontw,
         );
         if !input && self.error_msg.is_some() {
@@ -504,6 +545,8 @@ impl Game {
             }
             (false, false, _) => (),
             (_, _, Err(e)) => {
+                let e = format!("Error while parsing SocketAddr: {e}");
+                draw_handle.trace_log(TraceLogLevel::LOG_ERROR, &e);
                 self.error_msg = "Invalid ip address".to_owned().into();
             }
             _ => (),

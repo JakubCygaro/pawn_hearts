@@ -1,14 +1,14 @@
 use super::{Message, MessageQueue, NetBuf, SessId};
 use anyhow::{anyhow, Result};
 use std::io::{ErrorKind, Read, Write};
-use std::net::TcpStream;
+use std::net::{Shutdown, TcpStream};
 
 pub struct Client {
     state: ClientConnection,
     send: MessageQueue,
     recv: MessageQueue,
     tcp: TcpStream,
-    // addr: SocketAddr,
+    shutdown: bool,
     session_id: SessId,
     buf: NetBuf,
 }
@@ -29,7 +29,7 @@ impl Client {
             send: MessageQueue::new(),
             recv: MessageQueue::new(),
             tcp,
-            // addr: SocketAddr::from_str(address)?,
+            shutdown: false,
             session_id: [0; 4],
             buf: [0; 128],
         })
@@ -96,5 +96,16 @@ impl super::Connection for Client {
     }
     fn is_connected(&self) -> bool {
         matches!(&self.state, ClientConnection::Connected)
+    }
+    fn shutdown(&mut self) {
+        if !self.shutdown {
+            self.tcp
+                .shutdown(Shutdown::Both)
+                .expect("TcpStream shutdown failed");
+            self.shutdown = true;
+        }
+    }
+    fn is_shutdown(&self) -> bool {
+        self.shutdown
     }
 }
