@@ -21,6 +21,24 @@ use super::{board::BoardMove, network::Message};
 ///
 ///Margin between the board and window borders
 const MARGIN: f32 = 0.1;
+const OKRIMC: Color = Color {
+    r: 133,
+    g: 42,
+    b: 59,
+    a: 255,
+};
+const ERRRIMC: Color = Color {
+    r: 133,
+    g: 107,
+    b: 107,
+    a: 255,
+};
+const BACKC: Color = Color {
+    r: 255,
+    g: 254,
+    b: 246,
+    a: 255,
+};
 
 #[derive(Debug)]
 pub struct Selection {
@@ -421,7 +439,17 @@ impl Game {
             }
             State::ConnectingClient if !self.conn.as_ref().unwrap().is_connected() => {
                 let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
-                draw_handle.clear_background(Color::WHITESMOKE);
+                draw_handle.clear_background(BACKC);
+                draw_handle.draw_rectangle_lines_ex(
+                    Rectangle {
+                        x: 0.0,
+                        y: 0.0,
+                        width: self.width as f32,
+                        height: self.height as f32,
+                    },
+                    40.,
+                    OKRIMC,
+                );
                 gui::text(
                     &mut draw_handle,
                     Vector2 {
@@ -434,7 +462,17 @@ impl Game {
             }
             State::ConnectingHost if !self.conn.as_ref().unwrap().is_connected() => {
                 let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
-                draw_handle.clear_background(Color::WHITESMOKE);
+                draw_handle.clear_background(BACKC);
+                draw_handle.draw_rectangle_lines_ex(
+                    Rectangle {
+                        x: 0.0,
+                        y: 0.0,
+                        width: self.width as f32,
+                        height: self.height as f32,
+                    },
+                    40.,
+                    OKRIMC,
+                );
                 gui::text(
                     &mut draw_handle,
                     Vector2 {
@@ -455,9 +493,19 @@ impl Game {
     }
     fn draw_fatal_error(&mut self) {
         let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
-        draw_handle.clear_background(Color::WHITESMOKE);
+        draw_handle.clear_background(BACKC);
         let font = self.loader.get_font_no_load("LinLibertine_R.otf").unwrap();
         let fontw = FontWrap::wrap(font.as_ref(), 24., 12.);
+        draw_handle.draw_rectangle_lines_ex(
+            Rectangle {
+                x: 0.0,
+                y: 0.0,
+                width: self.width as f32,
+                height: self.height as f32,
+            },
+            40.,
+            ERRRIMC,
+        );
         let msg_pos = Vector2 {
             x: (self.width as f32 / 2.),
             y: (self.height as f32 / 2.),
@@ -480,20 +528,8 @@ impl Game {
         );
     }
     fn draw_setup_connection(&mut self) {
-        const RIMC: Color = Color {
-            r: 133,
-            g: 42,
-            b: 59,
-            a: 255,
-        };
-        const BACK: Color = Color {
-            r: 255,
-            g: 254,
-            b: 246,
-            a: 255,
-        };
         let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
-        draw_handle.clear_background(BACK);
+        draw_handle.clear_background(BACKC);
         let font = self.loader.get_font_no_load("LinLibertine_R.otf").unwrap();
         let fontw = FontWrap::wrap(font.as_ref(), 24., 12.);
 
@@ -505,7 +541,7 @@ impl Game {
                 height: self.height as f32,
             },
             40.,
-            RIMC,
+            OKRIMC,
         );
 
         let input_pos = Vector2 {
@@ -581,7 +617,7 @@ impl Game {
     }
     fn draw_board(&mut self) {
         let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
-        draw_handle.clear_background(Color::BLACK);
+        draw_handle.clear_background(OKRIMC);
 
         let mut color = Color::WHITESMOKE;
 
