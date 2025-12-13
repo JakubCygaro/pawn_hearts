@@ -37,7 +37,7 @@ impl Host {
             addr: SocketAddr::from_str(address)?,
             recv: MessageQueue::new(),
             send: MessageQueue::new(),
-            shutdown: false
+            shutdown: false,
         })
     }
 }
@@ -133,7 +133,8 @@ impl super::Connection for Host {
     fn shutdown(&mut self) {
         if !self.shutdown {
             if let Some(tcp) = &self.tcp {
-                tcp.shutdown(Shutdown::Both).expect("TcpStream shutdown failed");
+                tcp.shutdown(Shutdown::Both)
+                    .expect("TcpStream shutdown failed");
             }
             self.shutdown = true;
         }

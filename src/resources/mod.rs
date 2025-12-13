@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use raylib::text::Font;
 use raylib::texture::Texture2D;
 use std::{collections::HashMap, path::PathBuf, rc::Rc};
+pub mod meu_loader;
 pub trait ResourceLoader {
     fn get_texture(
         &mut self,
@@ -15,11 +16,8 @@ pub trait ResourceLoader {
         path: &str,
         handle: &mut raylib::RaylibHandle,
         thread: &mut raylib::RaylibThread,
-    )-> Result<Rc<Font>>;
-    fn get_font_no_load(
-        &self,
-        path: &str,
-    )-> Option<Rc<Font>>;
+    ) -> Result<Rc<Font>>;
+    fn get_font_no_load(&self, path: &str) -> Option<Rc<Font>>;
 }
 
 pub struct DirectoryResourceLoader {
@@ -77,9 +75,13 @@ impl DirectoryResourceLoader {
         for f in files.iter() {
             let ext = f.extension().unwrap().to_str().unwrap();
             match ext {
-                "png" => self.load_texture(f.to_str().unwrap(), handle, thread).map(|_|())?,
-                "otf" | "ttf" => self.load_font(f.to_str().unwrap(), handle, thread).map(|_|())?,
-                _ => ()
+                "png" => self
+                    .load_texture(f.to_str().unwrap(), handle, thread)
+                    .map(|_| ())?,
+                "otf" | "ttf" => self
+                    .load_font(f.to_str().unwrap(), handle, thread)
+                    .map(|_| ())?,
+                _ => (),
             }
         }
         Ok(())
@@ -126,7 +128,7 @@ impl ResourceLoader for DirectoryResourceLoader {
         path: &str,
         handle: &mut raylib::RaylibHandle,
         thread: &mut raylib::RaylibThread,
-    )-> Result<Rc<Font>>{
+    ) -> Result<Rc<Font>> {
         if let Some(t) = self.fonts.get(path) {
             Ok(t.to_owned())
         } else {
@@ -134,10 +136,7 @@ impl ResourceLoader for DirectoryResourceLoader {
             Ok(loaded)
         }
     }
-    fn get_font_no_load(
-        &self,
-        path: &str,
-    )-> Option<Rc<Font>>{
+    fn get_font_no_load(&self, path: &str) -> Option<Rc<Font>> {
         self.fonts.get(path).cloned()
     }
 }

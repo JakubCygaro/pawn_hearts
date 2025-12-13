@@ -219,7 +219,7 @@ impl Game {
                 conn.send(m);
             }
         }
-        if self.window_handle.window_should_close(){
+        if self.window_handle.window_should_close() {
             self.conn.as_mut().map(|c| c.shutdown()).unwrap_or_default();
         }
     }
@@ -266,9 +266,7 @@ impl Game {
             (Message::GameDone(), State::WaitReply(m)) => {
                 self.statefull_move_piece(*m).or(Some(State::WaitMove))
             }
-            (Message::GameDone(), _) => {
-                None
-            }
+            (Message::GameDone(), _) => None,
             _ => None,
         }
     }

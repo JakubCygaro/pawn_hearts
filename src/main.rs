@@ -1,10 +1,10 @@
 use std::process::exit;
 
 use self::game::{Game, RunArgs};
-mod gui;
 pub mod board;
 pub mod data;
 pub mod game;
+mod gui;
 pub mod helpers;
 pub mod network;
 pub mod resources;
