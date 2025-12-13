@@ -511,7 +511,7 @@ impl Game {
             "Host",
             fontw,
         );
-        let (input, _) = gui::text_input(
+        let (input, input_sz) = gui::text_input(
             &mut draw_handle,
             Vector2 {
                 x: connect_pos.x,
@@ -534,6 +534,16 @@ impl Game {
         } else {
             self.error_msg = None;
         }
+        let fontw = FontWrap::wrap(font.as_ref(), 48., 12.);
+        gui::text(
+            &mut draw_handle,
+            Vector2 {
+                x: connect_pos.x,
+                y: connect_pos.y - (sz.y * 1.5) - (input_sz.y * 2.5),
+            },
+            "Pawn Hearts",
+            fontw,
+        );
         match (client, host, SocketAddr::from_str(self.input_text.as_str())) {
             (true, false, Ok(addr)) => {
                 self.state = State::ConnectingClient;
@@ -635,6 +645,25 @@ impl Game {
                 0.,
                 Color::WHITE,
             )
+        }
+        if matches!(self.state, State::Won | State::Lost){
+            let font = self.loader.get_font_no_load("LinLibertine_R.otf").unwrap();
+            let fontw = FontWrap::wrap(font.as_ref(), 24., 12.);
+            let pos = Vector2 {
+                x: (self.width as f32 / 2.),
+                y: (self.height as f32 / 2.),
+            };
+            let sz = Vector2 {
+                x: (self.width as f32 / 4.),
+                y: (self.height as f32 / 8.),
+            };
+            draw_handle.draw_rectangle_v(pos - (sz / 2.), sz, Color::GRAY);
+            let msg = match self.state {
+                State::Won => "You won",
+                State::Lost => "You lost",
+                _ => unreachable!(),
+            };
+            gui::text(&mut draw_handle, pos, msg, fontw);
         }
     }
     fn board_pos(&self) -> Option<BoardPos> {
