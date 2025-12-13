@@ -277,6 +277,7 @@ impl ChessBoard {
             match side_effect {
                 SideEffect::Delete(p, c) => {
                     res.pieces_deleted.push(c);
+                    self.take_from(p);
                 }
                 SideEffect::Move(m) => {
                     let piece = self.take_from(m.from).unwrap();
