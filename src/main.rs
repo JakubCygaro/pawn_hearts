@@ -27,7 +27,7 @@ fn main() {
     };
     let mut game = Game::init(WIDTH, HEIGHT, args);
     game.update_board_data();
-    while !game.window_handle.window_should_close() {
+    while !game.should_close() {
         game.update();
         game.draw();
     }

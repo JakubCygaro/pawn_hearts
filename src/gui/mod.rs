@@ -84,6 +84,7 @@ pub fn text_input(
     pos: rmath::Vector2,
     text: &mut String,
     if_empty: Option<&str>,
+    limit: Option<u32>,
     font: FontWrap,
 ) -> (bool, rmath::Vector2) {
     let mut ret = false;
@@ -93,7 +94,10 @@ pub fn text_input(
     }
     if let Some(c) = hndl.get_char_pressed() {
         ret = true;
-        text.push(c)
+        match limit {
+            Some(l) if l <= text.len() as u32 => (),
+            _ => text.push(c),
+        }
     }
     let text = if text.is_empty() {
         if_empty.unwrap_or("<Empty>")

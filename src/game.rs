@@ -36,8 +36,8 @@ pub struct RunArgs {
 pub struct Game {
     board: board::ChessBoard,
     scratch_board: Option<board::ChessBoard>,
-    pub window_handle: RaylibHandle,
-    pub window_thread: RaylibThread,
+    window_handle: RaylibHandle,
+    window_thread: RaylibThread,
     width: i32,
     height: i32,
     loader: Box<dyn ResourceLoader>,
@@ -73,6 +73,9 @@ pub enum NetworkEvent {
 }
 
 impl Game {
+    pub fn should_close(&self) -> bool {
+        self.window_handle.window_should_close()
+    }
     pub fn init(width: i32, height: i32, run_args: Option<RunArgs>) -> Self {
         let (mut window_handle, mut window_thread) = ray::init()
             .width(width)
@@ -101,7 +104,8 @@ impl Game {
             }
             None => None,
         };
-
+        let (min_width, min_height) = (width, height);
+        window_handle.set_window_min_size(min_width, min_height);
         Self {
             board: board::ChessBoard::new_full(),
             scratch_board: None,
@@ -134,9 +138,11 @@ impl Game {
             self.resize();
         }
         let mut msgs: Vec<Message> = vec![];
-        if self.conn.is_some() && !matches!(self.state, State::Won | State::Lost | State::FatalError ){
+        if self.conn.is_some()
+            && !matches!(self.state, State::Won | State::Lost | State::FatalError)
+        {
             let conn = self.conn.as_mut().unwrap();
-            match conn.poll(){
+            match conn.poll() {
                 Ok(_) => {
                     while let Some(msg) = conn.recv() {
                         println!("recieved message: {:?}", msg);
@@ -439,25 +445,6 @@ impl Game {
                     fontw,
                 );
             }
-            State::Won | State::Lost => {
-                self.draw_board();
-                let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
-                let pos = Vector2 {
-                    x: (self.width as f32 / 2.),
-                    y: (self.height as f32 / 2.),
-                };
-                let sz = Vector2 {
-                    x: (self.width as f32 / 4.),
-                    y: (self.height as f32 / 8.),
-                };
-                draw_handle.draw_rectangle_v(pos - (sz / 2.), sz, Color::GRAY);
-                let msg = match self.state {
-                    State::Won => "You won",
-                    State::Lost => "You lost",
-                    _ => unreachable!(),
-                };
-                gui::text(&mut draw_handle, pos, msg, fontw);
-            }
             State::FatalError => {
                 self.draw_fatal_error();
             }
@@ -483,7 +470,7 @@ impl Game {
         );
         let err_pos = Vector2 {
             x: msg_pos.x,
-            y: msg_pos.y + (sz.y * 1.5)
+            y: msg_pos.y + (sz.y * 1.5),
         };
         gui::text(
             &mut draw_handle,
@@ -493,40 +480,70 @@ impl Game {
         );
     }
     fn draw_setup_connection(&mut self) {
+        const RIMC: Color = Color {
+            r: 133,
+            g: 42,
+            b: 59,
+            a: 255,
+        };
+        const BACK: Color = Color {
+            r: 255,
+            g: 254,
+            b: 246,
+            a: 255,
+        };
         let mut draw_handle = self.window_handle.begin_drawing(&self.window_thread);
-        draw_handle.clear_background(Color::WHITESMOKE);
+        draw_handle.clear_background(BACK);
         let font = self.loader.get_font_no_load("LinLibertine_R.otf").unwrap();
         let fontw = FontWrap::wrap(font.as_ref(), 24., 12.);
-        let connect_pos = Vector2 {
+
+        draw_handle.draw_rectangle_lines_ex(
+            Rectangle {
+                x: 0.0,
+                y: 0.0,
+                width: self.width as f32,
+                height: self.height as f32,
+            },
+            40.,
+            RIMC,
+        );
+
+        let input_pos = Vector2 {
             x: (self.width as f32 / 2.),
             y: (self.height as f32 / 2.),
         };
-        let (client, sz) = gui::button(&mut draw_handle, connect_pos, "Connect", fontw);
+        let (input, input_sz) = gui::text_input(
+            &mut draw_handle,
+            input_pos,
+            &mut self.input_text,
+            Some("<IP ADDRESS>"),
+            Some(24),
+            fontw,
+        );
+        let (client, client_sz) = gui::button(
+            &mut draw_handle,
+            Vector2 {
+                x: input_pos.x,
+                y: input_pos.y + (input_sz.y * 1.5),
+            },
+            "Connect",
+            fontw,
+        );
         let (host, host_sz) = gui::button(
             &mut draw_handle,
             Vector2 {
-                x: connect_pos.x,
-                y: connect_pos.y + (sz.y * 1.5),
+                x: input_pos.x,
+                y: input_pos.y + (input_sz.y * 1.5) + (client_sz.y * 1.5),
             },
             "Host",
-            fontw,
-        );
-        let (input, input_sz) = gui::text_input(
-            &mut draw_handle,
-            Vector2 {
-                x: connect_pos.x,
-                y: connect_pos.y - (sz.y * 1.5),
-            },
-            &mut self.input_text,
-            Some("<IP ADDRESS>"),
             fontw,
         );
         if !input && self.error_msg.is_some() {
             gui::text(
                 &mut draw_handle,
                 Vector2 {
-                    x: connect_pos.x,
-                    y: connect_pos.y + (sz.y * 1.5) + (host_sz.y * 1.5),
+                    x: input_pos.x,
+                    y: input_pos.y + (client_sz.y * 1.5) + (host_sz.y * 1.5),
                 },
                 self.error_msg.as_ref().unwrap(),
                 fontw,
@@ -538,8 +555,8 @@ impl Game {
         gui::text(
             &mut draw_handle,
             Vector2 {
-                x: connect_pos.x,
-                y: connect_pos.y - (sz.y * 1.5) - (input_sz.y * 2.5),
+                x: input_pos.x,
+                y: input_pos.y - (input_sz.y * 2.5),
             },
             "Pawn Hearts",
             fontw,
@@ -646,7 +663,7 @@ impl Game {
                 Color::WHITE,
             )
         }
-        if matches!(self.state, State::Won | State::Lost){
+        if matches!(self.state, State::Won | State::Lost) {
             let font = self.loader.get_font_no_load("LinLibertine_R.otf").unwrap();
             let fontw = FontWrap::wrap(font.as_ref(), 24., 12.);
             let pos = Vector2 {
