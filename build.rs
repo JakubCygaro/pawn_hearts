@@ -8,9 +8,8 @@ fn main() {
     if profile.eq("release") {
         let test = Command::new("meurglys3").output();
         if let Err(err) = test {
-            println!("cargo::warning=Could not execute meurglys3, make sure it is available on the PATH.
-                Otherwise the built binary will depend on the game data being present in the `data` directory
-                and not a meurglys3 package.");
+            println!("cargo::warning=Could not execute meurglys3, make sure it is available on the PATH.");
+            println!("Otherwise the built binary will depend on the game data being present in the `data` directory and not a meurglys3 package.");
             println!("cargo::warning=Error was: `{err}`");
             println!("cargo::rustc-env=PH_NO_MEU3=1");
         } else {
