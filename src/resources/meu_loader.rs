@@ -1,7 +1,10 @@
 use anyhow::{anyhow, Result};
 use meurglys3_lib;
+use raylib::ffi;
 use raylib::text::Font;
-use raylib::texture::Texture2D;
+use raylib::texture::{Image, Texture2D};
+use std::ffi::CString;
+use std::str::FromStr;
 use std::{collections::HashMap, path::PathBuf, rc::Rc};
 
 pub struct MeurglisResourceLoader {
@@ -27,14 +30,33 @@ impl MeurglisResourceLoader {
         for f in files.iter() {
             let ext = f.extension().unwrap().to_str().unwrap();
             match ext {
-                "png" => {
+                ty @ "png" => {
                     let s = f.to_str().unwrap().to_owned();
-                    let t = handle.load_texture(thread, s.as_str())?;
+                    let d = package.get_data_ref(&s).unwrap();
+                    let t = unsafe {
+                        let ty = CString::from_str(ty).unwrap();
+                        let i = ffi::LoadImageFromMemory(ty.as_ptr(), d.as_ptr(), d.len() as i32);
+                        let t = ffi::LoadTextureFromImage(i);
+                        Texture2D::from_raw(t)
+                    };
                     textures.insert(s, Rc::from(t));
                 }
-                "otf" | "ttf" => {
+                ty @ ("otf" | "ttf") => {
                     let s = f.to_str().unwrap().to_owned();
-                    let font = handle.load_font(thread, s.as_str())?;
+                    println!("{s}");
+                    let d = package.get_data_ref(&s).unwrap();
+                    let font = unsafe {
+                        let ty = CString::from_str(ty).unwrap();
+                        let f = ffi::LoadFontFromMemory(
+                            ty.as_ptr(),
+                            d.as_ptr(),
+                            d.len() as i32,
+                            48,
+                            std::ptr::null_mut(),
+                            0,
+                        );
+                        Font::from_raw(f)
+                    };
                     fonts.insert(s, Rc::from(font));
                 }
                 _ => (),
@@ -51,19 +73,19 @@ impl super::ResourceLoader for MeurglisResourceLoader {
         self.textures.get(path).cloned()
     }
     fn get_font(
-            &mut self,
-            path: &str,
-            _handle: &mut raylib::RaylibHandle,
-            _thread: &mut raylib::RaylibThread,
-        ) -> Result<Rc<Font>> {
+        &mut self,
+        path: &str,
+        _handle: &mut raylib::RaylibHandle,
+        _thread: &mut raylib::RaylibThread,
+    ) -> Result<Rc<Font>> {
         self.get_font_no_load(path).ok_or(anyhow!("No font"))
     }
     fn get_texture(
-            &mut self,
-            path: &str,
-            _handle: &mut raylib::RaylibHandle,
-            _thread: &mut raylib::RaylibThread,
-        ) -> Result<Rc<Texture2D>> {
+        &mut self,
+        path: &str,
+        _handle: &mut raylib::RaylibHandle,
+        _thread: &mut raylib::RaylibThread,
+    ) -> Result<Rc<Texture2D>> {
         self.get_texture_no_load(path).ok_or(anyhow!("No texture"))
     }
 }

@@ -3,6 +3,7 @@ use crate::gui::{self, FontWrap};
 use crate::network::client::Client;
 use crate::network::host::Host;
 use crate::network::{Connection, MessageQueue};
+use crate::resources::meu_loader::MeurglisResourceLoader;
 
 use super::board::{self, BoardPos, MoveBuilder};
 use super::helpers;
@@ -104,10 +105,21 @@ impl Game {
             .log_level(TraceLogLevel::LOG_NONE)
             .build();
         window_handle.set_target_fps(60);
-        let mut loader = DirectoryResourceLoader::new(PathBuf::from_str("data/").unwrap());
-        loader
-            .load_all_root(&mut window_handle, &mut window_thread)
-            .expect("could not load all textures");
+        let loader: Box<dyn ResourceLoader> = if cfg!(debug_assertions) {
+            let mut l = DirectoryResourceLoader::new(PathBuf::from_str("data/").unwrap());
+            l.load_all_root(&mut window_handle, &mut window_thread)
+                .expect("could not load all data");
+            Box::new(l)
+        } else {
+            Box::new(
+                MeurglisResourceLoader::load_package(
+                    PathBuf::from_str("data.m3pkg").unwrap(),
+                    &mut window_handle,
+                    &mut window_thread,
+                )
+                .expect("could not load meu package"),
+            )
+        };
 
         let is_host = run_args.as_ref().map(|ra| ra.is_host);
 
@@ -131,7 +143,7 @@ impl Game {
             window_thread,
             width,
             height,
-            loader: Box::new(loader),
+            loader,
             board_data: board::BoardRenderData::default(),
             selected_piece: None,
             reversed: false,
