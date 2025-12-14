@@ -43,15 +43,18 @@ impl MeurglisResourceLoader {
                 }
                 ty @ ("otf" | "ttf") => {
                     let s = f.to_str().unwrap().to_owned();
-                    println!("{s}");
                     let d = package.get_data_ref(&s).unwrap();
                     let font = unsafe {
-                        let ty = CString::from_str(ty).unwrap();
+                        // reading the source code is what you gotta do
+                        // this function for some reason requires the '.' to be present in the file
+                        // type argument
+                        let ty = format!(".{ty}");
+                        let ty = CString::from_str(&ty).unwrap();
                         let f = ffi::LoadFontFromMemory(
                             ty.as_ptr(),
                             d.as_ptr(),
                             d.len() as i32,
-                            48,
+                            256,
                             std::ptr::null_mut(),
                             0,
                         );

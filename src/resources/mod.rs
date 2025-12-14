@@ -60,7 +60,7 @@ impl DirectoryResourceLoader {
         file_path.push(path);
 
         let font = handle
-            .load_font(thread, file_path.to_str().unwrap())
+            .load_font_ex(thread, file_path.to_str().unwrap(), 256, None)
             .map_err(|e| anyhow!(e))?;
         let font = Rc::new(font);
         self.fonts.insert(path.to_string(), font.clone());
