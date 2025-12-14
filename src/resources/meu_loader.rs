@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use meurglys3_lib;
 use raylib::ffi;
 use raylib::text::Font;
-use raylib::texture::{Image, Texture2D};
+use raylib::texture::{Texture2D};
 use std::ffi::CString;
 use std::str::FromStr;
 use std::{collections::HashMap, path::PathBuf, rc::Rc};
@@ -15,8 +15,8 @@ pub struct MeurglisResourceLoader {
 impl MeurglisResourceLoader {
     pub fn load_package(
         path: PathBuf,
-        handle: &mut raylib::RaylibHandle,
-        thread: &mut raylib::RaylibThread,
+        _handle: &mut raylib::RaylibHandle,
+        _thread: &mut raylib::RaylibThread,
     ) -> Result<Self> {
         let package = meurglys3_lib::load_package(path)?;
         let files = package
