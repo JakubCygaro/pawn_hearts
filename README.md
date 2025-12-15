@@ -18,7 +18,7 @@ cmake through MSYS as it always fucks up every build process I tried.
 
 By default the game binary will look for a `data` directory located right next to it
 if that directory cannot be located the game will fail to start. You can set the environment variable `PH_USE_MEU3=1`
-to make the built binary use a ![https://github.com/JakubCygaro/meurglys3](meurglys3) package as a source of assets.
+to make the built binary use a [meurglys3](https://github.com/JakubCygaro/meurglys3) package as a source of assets.
 
 **The assets need to be packaged by you manually**
 
