@@ -105,10 +105,9 @@ impl Game {
             .log_level(TraceLogLevel::LOG_NONE)
             .build();
         window_handle.set_target_fps(60);
-        let loader: Box<dyn ResourceLoader> = if cfg!(debug_assertions)
-            || option_env!("PH_NO_MEU3")
-                .map(|v| v.eq("1"))
-                .unwrap_or(false)
+        let loader: Box<dyn ResourceLoader> = if !option_env!("PH_USE_MEU3")
+            .map(|v| v.eq("1"))
+            .unwrap_or(false)
         {
             let mut l = DirectoryResourceLoader::new(PathBuf::from_str("data/").unwrap());
             l.load_all_root(&mut window_handle, &mut window_thread)
