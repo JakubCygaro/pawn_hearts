@@ -23,3 +23,6 @@ package as a source of assets.
 
 **The assets need to be packaged by you manually**
 
+<img width="930" height="958" alt="image" src="https://github.com/user-attachments/assets/85e819b2-3432-4450-a1bd-bc7c9dca2ff2" />
+
+<img width="1599" height="827" alt="image" src="https://github.com/user-attachments/assets/9f3e1a46-81e5-4fe9-bf1f-9c53c20eeff6" />
