@@ -88,6 +88,7 @@ fn decode_message(bytes: &[u8]) -> Result<(Message, usize)> {
         0x02 => Ok((Message::Rejected(), 1)),
         0x03 => Ok((Message::Accepted(), 1)),
         0x04 => Ok((Message::GameDone(), 1)),
+        0x05 => Ok((Message::HeartBeat(), 1)),
         _ => bail!("Decoder: invalid message kind"),
     }
 }
@@ -97,6 +98,7 @@ pub enum Message {
     Rejected(),                     // 0x02
     Accepted(),                     // 0x03
     GameDone(),                     // 0x04
+    HeartBeat(),                    // 0x05
 }
 fn encode_message(msg: &Message) -> Bytes {
     let mut bytes = BytesMut::new();
@@ -113,6 +115,9 @@ fn encode_message(msg: &Message) -> Bytes {
         }
         Message::GameDone() => {
             bytes.put_u8(0x04);
+        }
+        Message::HeartBeat() => {
+            bytes.put_u8(0x05);
         }
     }
     bytes.into()

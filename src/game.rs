@@ -16,6 +16,7 @@ use raylib::{
 };
 use std::net::SocketAddr;
 use std::ops::Not;
+use std::time::{Duration, Instant};
 use std::{path::PathBuf, str::FromStr};
 
 use super::{board::BoardMove, network::Message};
@@ -40,6 +41,7 @@ const BACKC: Color = Color {
     b: 246,
     a: 255,
 };
+const HEARTBEAT_T: Duration = Duration::from_secs(35);
 
 #[derive(Debug)]
 pub struct Selection {
@@ -69,6 +71,8 @@ pub struct Game {
     state: State,
     input_text: String,
     error_msg: Option<String>,
+    last_network_t: Instant,
+    next_heartbeat_t: Instant,
 }
 #[derive(PartialEq, Clone, Debug)]
 enum State {
@@ -164,6 +168,8 @@ impl Game {
             send_queue: MessageQueue::new(),
             input_text: String::from(""),
             error_msg: None,
+            last_network_t: Instant::now(),
+            next_heartbeat_t: Instant::now(),
         }
     }
     pub fn update(&mut self) {
@@ -173,12 +179,17 @@ impl Game {
         let mut msgs: Vec<Message> = vec![];
         if self.conn.is_some()
             && !matches!(self.state, State::Won | State::Lost | State::FatalError)
-            && !self.conn.as_deref().map(Connection::is_shutdown).unwrap_or(false)
+            && !self
+                .conn
+                .as_deref()
+                .map(Connection::is_shutdown)
+                .unwrap_or(false)
         {
             let conn = self.conn.as_mut().unwrap();
             match conn.poll() {
                 Ok(_) => {
                     while let Some(msg) = conn.recv() {
+                        self.last_network_t = Instant::now();
                         msgs.push(msg)
                     }
                 }
@@ -187,6 +198,12 @@ impl Game {
                     eprintln!("{e}");
                     self.state = State::FatalError;
                 }
+            }
+            const TIMEOUT: Duration = Duration::from_mins(3);
+            if self.last_network_t - Instant::now() > TIMEOUT {
+                self.error_msg = Some("Connection time out".to_owned());
+                eprintln!("peer was idle for over {:?}", TIMEOUT);
+                self.state = State::FatalError;
             }
         }
         for m in msgs {
@@ -211,9 +228,13 @@ impl Game {
             State::ConnectingClient if self.conn.as_ref().unwrap().is_connected() => {
                 self.is_host = false;
                 self.reversed = true;
+                self.next_heartbeat_t = Instant::now() + HEARTBEAT_T;
                 State::WaitMove
             }
-            State::ConnectingHost if self.conn.as_ref().unwrap().is_connected() => State::Move,
+            State::ConnectingHost if self.conn.as_ref().unwrap().is_connected() => {
+                self.next_heartbeat_t = Instant::now() + HEARTBEAT_T;
+                State::Move
+            }
             State::Won | State::Lost => {
                 let conn = self.conn.as_mut().unwrap();
                 if !conn.is_shutdown() {
@@ -229,10 +250,26 @@ impl Game {
         while let Some(m) = self.send_queue.pop_front() {
             msgs.push(m)
         }
-        if self.conn.is_some() {
+        if self.conn.is_some()
+            && !self
+                .conn
+                .as_deref()
+                .map(Connection::is_shutdown)
+                .unwrap_or(true)
+        {
             let conn = self.conn.as_mut().unwrap();
             for m in msgs {
                 conn.send(m);
+            }
+            use std::cmp::Ordering::{Equal, Greater, Less};
+            let now = Instant::now();
+            let diff = match now.cmp(&self.next_heartbeat_t) {
+                Greater => self.next_heartbeat_t - now,
+                Less | Equal => now - self.next_heartbeat_t,
+            };
+            if diff <= Duration::from_secs(30) {
+                conn.send(Message::HeartBeat());
+                println!("HEARTBEAT! {:?}", now);
             }
         }
         if self.window_handle.window_should_close() {
@@ -263,22 +300,15 @@ impl Game {
     }
     fn handle_message_client(&mut self, msg: Message) -> Option<State> {
         match (msg, &self.state) {
-            (Message::Moved(m), State::WaitMove) => {
-                // self.board.move_piece(m);
-                // self.send_mess_queue.push_back(Message::GameDone());
-                // Some(State::Move)
-                self.statefull_move_piece(m)
-                    .inspect(|_| self.send_queue.push_back(Message::GameDone()))
-                    .or(Some(State::Move))
-            }
+            (Message::Moved(m), State::WaitMove) => self
+                .statefull_move_piece(m)
+                .inspect(|_| self.send_queue.push_back(Message::GameDone()))
+                .or(Some(State::Move)),
             (Message::Rejected(), _) => Some(State::WaitMove),
-            (Message::Accepted(), State::WaitReply(m)) => {
-                // self.board.move_piece(*m);
-                // Some(State::WaitMove)
-                self.statefull_move_piece(*m)
-                    .inspect(|_| self.send_queue.push_back(Message::GameDone()))
-                    .or(Some(State::WaitMove))
-            }
+            (Message::Accepted(), State::WaitReply(m)) => self
+                .statefull_move_piece(*m)
+                .inspect(|_| self.send_queue.push_back(Message::GameDone()))
+                .or(Some(State::WaitMove)),
             (Message::GameDone(), State::WaitReply(m)) => {
                 self.statefull_move_piece(*m).or(Some(State::WaitMove))
             }
