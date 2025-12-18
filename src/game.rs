@@ -173,7 +173,7 @@ impl Game {
         let mut msgs: Vec<Message> = vec![];
         if self.conn.is_some()
             && !matches!(self.state, State::Won | State::Lost | State::FatalError)
-            && self.conn.as_deref().map(Connection::is_shutdown).unwrap_or(false)
+            && !self.conn.as_deref().map(Connection::is_shutdown).unwrap_or(false)
         {
             let conn = self.conn.as_mut().unwrap();
             match conn.poll() {

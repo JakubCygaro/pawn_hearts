@@ -30,6 +30,7 @@ pub fn recv_messages(
 ) -> Result<Option<Vec<Message>>> {
     let mut ret = vec![];
     match sock.read(buf) {
+        Ok(0) => anyhow::bail!("connection closed"),
         Ok(n) => {
             let mut cursor = 0;
             while cursor < n {
