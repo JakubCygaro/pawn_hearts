@@ -332,17 +332,6 @@ impl ChessBoard {
                             });
                         ValidationResult::Valid(se)
                     }
-                    // ValidationResult::Valid(Some(mut se)) => {
-                    //
-                    //
-                    //
-                    //     se.push(SideEffect::Move(m));
-                    //     ValidationResult::Valid(Some(se))
-                    // }
-                    // ValidationResult::Valid(None) => {
-                    //     let se = vec![SideEffect::Move(m)];
-                    //     ValidationResult::Valid(Some(se))
-                    // }
                     ValidationResult::NotValid => ValidationResult::NotValid,
                 }
             } else {

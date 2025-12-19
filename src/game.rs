@@ -41,7 +41,7 @@ const BACKC: Color = Color {
     b: 246,
     a: 255,
 };
-const HEARTBEAT_T: Duration = Duration::from_secs(35);
+const HEARTBEAT_T: Duration = Duration::from_mins(2);
 
 #[derive(Debug)]
 pub struct Selection {
@@ -269,7 +269,6 @@ impl Game {
             };
             if diff <= Duration::from_secs(30) {
                 conn.send(Message::HeartBeat());
-                println!("HEARTBEAT! {:?}", now);
             }
         }
         if self.window_handle.window_should_close() {
@@ -336,11 +335,6 @@ impl Game {
             if let Some(pos) = self.board_pos() {
                 self.handle_place(pos);
             }
-            // let mouse_pos = self.window_handle.get_mouse_position();
-            // if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
-            //     let pos = helpers::get_board_pos(&self.board_data, point);
-            //     self.handle_place(pos);
-            // }
         }
     }
 
