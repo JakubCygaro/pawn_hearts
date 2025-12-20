@@ -381,7 +381,8 @@ impl Game {
                 if self.scratch_board.is_none() && !self.is_host {
                     self.scratch_board = self.board.clone().into();
                 }
-                let scratch: &mut board::ChessBoard = self.scratch_board.as_mut().unwrap();
+                // let scratch = self.scratch_board.as_mut().unwrap();
+                let mut scratch = self.board.clone();
                 if scratch.move_piece(m).is_some() {
                     self.state = State::MovePending(m);
                 } else {

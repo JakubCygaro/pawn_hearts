@@ -265,7 +265,7 @@ impl ChessBoard {
     /// returns Some when the move passed validation
     /// and thus was executed
     pub fn move_piece(&mut self, m: BoardMove) -> Option<BoardMoveResult> {
-        let ValidationResult::Valid(Some(side_effects)) = self.validate_move(m) else {
+        let ValidationResult::Valid(side_effects) = self.validate_move(m) else {
             return None;
         };
         let mut res = BoardMoveResult {
@@ -273,6 +273,7 @@ impl ChessBoard {
             pieces_moved: vec![],
             pieces_set: vec![],
         };
+        let side_effects = side_effects.unwrap_or_default();
         for side_effect in side_effects.into_iter().rev() {
             match side_effect {
                 SideEffect::Delete(p, c) => {
@@ -304,7 +305,6 @@ impl ChessBoard {
         if *from_cell == ChessBoardCell::Empty {
             return ValidationResult::NotValid;
         }
-
         if let Some(at_cell) = self.at(m.to) {
             //check if the target piece is not of the same colour as the from piece
             if !matches!(
