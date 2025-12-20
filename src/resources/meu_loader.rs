@@ -34,7 +34,8 @@ impl MeurglisResourceLoader {
                     let s = f.to_str().unwrap().to_owned();
                     let d = package.get_data_ref(&s).unwrap();
                     let t = unsafe {
-                        let ty = CString::from_str(ty).unwrap();
+                        let ty = format!(".{ty}");
+                        let ty = CString::from_str(&ty).unwrap();
                         let i = ffi::LoadImageFromMemory(ty.as_ptr(), d.as_ptr(), d.len() as i32);
                         let t = ffi::LoadTextureFromImage(i);
                         if t.id == 0 {
