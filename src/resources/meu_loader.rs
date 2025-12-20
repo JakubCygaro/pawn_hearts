@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use meurglys3_lib;
 use raylib::ffi;
 use raylib::text::Font;
-use raylib::texture::{Texture2D};
+use raylib::texture::Texture2D;
 use std::ffi::CString;
 use std::str::FromStr;
 use std::{collections::HashMap, path::PathBuf, rc::Rc};
@@ -62,6 +62,9 @@ impl MeurglisResourceLoader {
                             std::ptr::null_mut(),
                             0,
                         );
+                        if f.glyphs.is_null() {
+                            anyhow::bail!("Could not load font {:?}", f);
+                        }
                         Font::from_raw(f)
                     };
                     fonts.insert(s, Rc::from(font));
