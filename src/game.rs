@@ -688,6 +688,10 @@ impl Game {
                         0.,
                         Color::WHITE,
                     )
+                } else {
+                    self.state = State::FatalError;
+                    self.error_msg = Some("Failed to load texture".to_owned());
+                    return;
                 }
             }
         }

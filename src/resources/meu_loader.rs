@@ -37,6 +37,9 @@ impl MeurglisResourceLoader {
                         let ty = CString::from_str(ty).unwrap();
                         let i = ffi::LoadImageFromMemory(ty.as_ptr(), d.as_ptr(), d.len() as i32);
                         let t = ffi::LoadTextureFromImage(i);
+                        if t.id == 0 {
+                            anyhow::bail!("Could not load texture {:?}", f);
+                        }
                         Texture2D::from_raw(t)
                     };
                     textures.insert(s, Rc::from(t));
