@@ -56,7 +56,6 @@ pub struct RunArgs {
 
 pub struct Game {
     board: board::ChessBoard,
-    scratch_board: Option<board::ChessBoard>,
     window_handle: RaylibHandle,
     window_thread: RaylibThread,
     width: i32,
@@ -145,7 +144,6 @@ impl Game {
         window_handle.set_window_min_size(min_width, min_height);
         Self {
             board: board::ChessBoard::new_full(),
-            scratch_board: None,
             window_handle,
             window_thread,
             width,
@@ -378,15 +376,9 @@ impl Game {
                 // clone the board so that any changes occur only for the copy and dont modify the
                 // state of the real board (host does not care and performs their moves on the true
                 // board anyways)
-                if self.scratch_board.is_none() && !self.is_host {
-                    self.scratch_board = self.board.clone().into();
-                }
-                // let scratch = self.scratch_board.as_mut().unwrap();
                 let mut scratch = self.board.clone();
                 if scratch.move_piece(m).is_some() {
                     self.state = State::MovePending(m);
-                } else {
-                    self.scratch_board = None;
                 }
             } else if let Some(result) = self.board.move_piece(m) {
                 self.send_queue.push_back(Message::Moved(m));
