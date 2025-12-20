@@ -173,7 +173,11 @@ impl Game {
         let mut msgs: Vec<Message> = vec![];
         if self.conn.is_some()
             && !matches!(self.state, State::Won | State::Lost | State::FatalError)
-            && !self.conn.as_deref().map(Connection::is_shutdown).unwrap_or(false)
+            && !self
+                .conn
+                .as_deref()
+                .map(Connection::is_shutdown)
+                .unwrap_or(false)
         {
             let conn = self.conn.as_mut().unwrap();
             match conn.poll() {
@@ -263,22 +267,18 @@ impl Game {
     }
     fn handle_message_client(&mut self, msg: Message) -> Option<State> {
         match (msg, &self.state) {
-            (Message::Moved(m), State::WaitMove) => {
-                // self.board.move_piece(m);
-                // self.send_mess_queue.push_back(Message::GameDone());
-                // Some(State::Move)
-                self.statefull_move_piece(m)
-                    .inspect(|_| self.send_queue.push_back(Message::GameDone()))
-                    .or(Some(State::Move))
+            (Message::Moved(m), State::WaitMove) => self
+                .statefull_move_piece(m)
+                .inspect(|_| self.send_queue.push_back(Message::GameDone()))
+                .or(Some(State::Move)),
+            (Message::Rejected(), _) => {
+                Some(State::WaitMove)
             }
-            (Message::Rejected(), _) => Some(State::WaitMove),
             (Message::Accepted(), State::WaitReply(m)) => {
-                // self.board.move_piece(*m);
-                // Some(State::WaitMove)
-                self.statefull_move_piece(*m)
-                    .inspect(|_| self.send_queue.push_back(Message::GameDone()))
-                    .or(Some(State::WaitMove))
-            }
+                self
+                .statefull_move_piece(*m)
+                .inspect(|_| self.send_queue.push_back(Message::GameDone()))
+                .or(Some(State::WaitMove))},
             (Message::GameDone(), State::WaitReply(m)) => {
                 self.statefull_move_piece(*m).or(Some(State::WaitMove))
             }
@@ -306,11 +306,6 @@ impl Game {
             if let Some(pos) = self.board_pos() {
                 self.handle_place(pos);
             }
-            // let mouse_pos = self.window_handle.get_mouse_position();
-            // if let Some(point) = helpers::check_point_on_rect(&self.board_data.rect, mouse_pos) {
-            //     let pos = helpers::get_board_pos(&self.board_data, point);
-            //     self.handle_place(pos);
-            // }
         }
     }
 
@@ -357,7 +352,8 @@ impl Game {
                 if self.scratch_board.is_none() && !self.is_host {
                     self.scratch_board = self.board.clone().into();
                 }
-                let scratch: &mut board::ChessBoard = self.scratch_board.as_mut().unwrap();
+                // let scratch = self.scratch_board.as_mut().unwrap();
+                let mut scratch = self.board.clone();
                 if scratch.move_piece(m).is_some() {
                     self.state = State::MovePending(m);
                 } else {
