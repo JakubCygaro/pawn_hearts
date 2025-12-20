@@ -121,7 +121,7 @@ fn black_pawn(mv: BoardMove, b: &ChessBoard) -> ValidationResult {
                 ValidationResult::NotValid
             }
         }
-        BoardMove { rows: 2, .. } if mv.from.row == 1 => {
+        BoardMove { rows: 2,  columns: 0, .. } if mv.from.row == 1 => {
             if let Some(&ChessBoardCell::Empty) = b.at(mv.to) {
                 ValidationResult::Valid(Some(vec![SideEffect::SetAt(
                     mv.to,
@@ -131,7 +131,7 @@ fn black_pawn(mv: BoardMove, b: &ChessBoard) -> ValidationResult {
                 ValidationResult::NotValid
             }
         }
-        BoardMove { rows: 1, .. } => {
+        BoardMove { rows: 1, columns: 0, .. } => {
             if let Some(&ChessBoardCell::Empty) = b.at(mv.to) {
                 ValidationResult::Valid(Some(vec![SideEffect::SetAt(
                     mv.to,
@@ -200,7 +200,7 @@ fn white_pawn(mv: BoardMove, b: &ChessBoard) -> ValidationResult {
                 ValidationResult::NotValid
             }
         }
-        BoardMove { rows: -2, .. } if mv.from.row == 6 => {
+        BoardMove { rows: -2, columns: 0, .. } if mv.from.row == 6 => {
             if let Some(&ChessBoardCell::Empty) = b.at(mv.to) {
                 ValidationResult::Valid(Some(vec![SideEffect::SetAt(
                     mv.to,
@@ -210,7 +210,7 @@ fn white_pawn(mv: BoardMove, b: &ChessBoard) -> ValidationResult {
                 ValidationResult::NotValid
             }
         }
-        BoardMove { rows: -1, .. } => {
+        BoardMove { rows: -1, columns: 0, .. } => {
             if let Some(&ChessBoardCell::Empty) = b.at(mv.to) {
                 ValidationResult::Valid(Some(vec![SideEffect::SetAt(
                     mv.to,
