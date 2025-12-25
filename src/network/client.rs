@@ -106,4 +106,7 @@ impl super::Connection for Client {
     fn is_shutdown(&self) -> bool {
         self.shutdown
     }
+    fn has_messages_to_send(&self) -> bool {
+        self.send.is_empty()
+    }
 }

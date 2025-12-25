@@ -21,6 +21,7 @@ pub trait Connection {
     fn poll(&mut self) -> Result<()>;
     fn send(&mut self, msg: Message);
     fn recv(&mut self) -> Option<Message>;
+    fn has_messages_to_send(&self) -> bool;
 }
 
 pub fn recv_messages(

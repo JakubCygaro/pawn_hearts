@@ -176,12 +176,14 @@ impl Game {
         }
         let mut msgs: Vec<Message> = vec![];
         if self.conn.is_some()
-            && !matches!(self.state, State::Won | State::Lost | State::FatalError)
-            && !self
-                .conn
-                .as_deref()
-                .map(Connection::is_shutdown)
-                .unwrap_or(false)
+            && (!matches!(self.state, State::Lost | State::Won)
+                || self
+                    .conn
+                    .as_deref()
+                    .map(Connection::has_messages_to_send)
+                    .unwrap())
+            && !matches!(self.state, State::FatalError)
+            && !self.conn.as_deref().map(Connection::is_shutdown).unwrap()
         {
             let conn = self.conn.as_mut().unwrap();
             match conn.poll() {
@@ -205,6 +207,7 @@ impl Game {
             }
         }
         for m in msgs {
+            println!("handle_message: {:?}", m);
             if let Some(new_state) = self.handle_message(m) {
                 self.state = new_state;
             }
@@ -234,10 +237,10 @@ impl Game {
                 State::Move
             }
             State::Won | State::Lost => {
-                let conn = self.conn.as_mut().unwrap();
-                if !conn.is_shutdown() {
-                    conn.shutdown();
-                }
+                // let conn = self.conn.as_mut().unwrap();
+                // if !conn.is_shutdown() {
+                //     conn.shutdown();
+                // }
                 self.state.clone()
             }
             _ => self.state.clone(),
@@ -262,9 +265,10 @@ impl Game {
             use std::cmp::Ordering::{Equal, Greater, Less};
             let now = Instant::now();
             let diff = match now.cmp(&self.next_heartbeat_t) {
-                Greater => self.next_heartbeat_t - now,
-                Less | Equal => now - self.next_heartbeat_t,
+                Greater => now - self.next_heartbeat_t,
+                Less | Equal => self.next_heartbeat_t - now,
             };
+            println!("diff: {:?}", diff);
             if diff <= Duration::from_secs(30) {
                 conn.send(Message::HeartBeat());
             }
